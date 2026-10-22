@@ -3,664 +3,301 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Онлайн СОР / СОЧ по биологии</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <title>СОР / СОЧ по биологии</title>
   <style>
-    .no-select {
-      -webkit-user-select: none;
-      -moz-user-select: none;
-      -ms-user-select: none;
-      user-select: none;
-    }
-    @media print {
-      body { display: none !important; }
-    }
-    .violation-blur {
-      filter: blur(20px);
-      pointer-events: none;
-    }
-    .mirror-mode {
-      transform: scaleX(-1);
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f1f5f9; color: #1e293b; user-select: none; }
+    @media print { body { display: none !important; } }
+    .header { background: #ffffff; border-bottom: 1px solid #cbd5e1; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; }
+    .btn { cursor: pointer; padding: 8px 16px; border-radius: 8px; font-weight: 600; font-size: 13px; border: none; transition: 0.2s; }
+    .btn-green { background: #059669; color: #ffffff; }
+    .btn-green:hover { background: #047857; }
+    .btn-dark { background: #1e293b; color: #ffffff; }
+    .btn-outline { background: transparent; border: 1px solid #94a3b8; color: #334155; }
+    .card { background: #ffffff; border-radius: 14px; border: 1px solid #cbd5e1; padding: 24px; max-width: 650px; margin: 30px auto; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+    .input-box { width: 100%; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; margin-top: 6px; margin-bottom: 14px; }
+    .alert-box { background: #fef3c7; border: 1px solid #fde047; padding: 12px; border-radius: 8px; font-size: 12px; color: #854d0e; margin-bottom: 16px; line-height: 1.5; }
+    .hidden { display: none !important; }
+    .camera-box { position: fixed; bottom: 20px; right: 20px; width: 200px; height: 140px; background: #000; border: 2px solid #059669; border-radius: 12px; overflow: hidden; z-index: 50; }
+    .camera-box video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+    .blur-screen { filter: blur(20px); pointer-events: none; }
+    .watermark { position: fixed; inset: 0; pointer-events: none; display: flex; align-items: center; justify-content: center; z-index: 40; }
+    .watermark-text { font-size: 42px; font-weight: 900; color: rgba(15, 23, 42, 0.08); transform: rotate(-25deg); text-align: center; }
   </style>
 </head>
-<body class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col font-sans no-select" oncontextmenu="return false;">
+<body oncontextmenu="return false;">
 
   <!-- ШАПКА -->
-  <header class="bg-white border-b border-slate-200 sticky top-0 z-40 px-4 lg:px-8 py-3 flex items-center justify-between shadow-sm">
-    <div class="flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-md">
-        <i class="fa-solid fa-dna text-lg"></i>
-      </div>
-      <div>
-        <h1 class="font-bold text-slate-900 leading-tight text-base sm:text-lg flex items-center gap-2">
-          Биология СОР / СОЧ
-          <span id="badgeMode" class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium">Контроль сдачи</span>
-        </h1>
-        <p class="text-xs text-slate-500">Автоконтроль окна и веб-камеры</p>
-      </div>
+  <header class="header">
+    <div>
+      <h1 style="font-size: 16px; font-weight: bold;">Биология СОР / СОЧ</h1>
+      <span style="font-size: 12px; color: #64748b;">Система онлайн-оценивания</span>
     </div>
-
-    <div class="flex items-center gap-2">
-      <button id="btnSwitchToTeacher" onclick="openTeacherAuthModal()" class="text-xs font-semibold px-3 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50">
-        <i class="fa-solid fa-lock text-slate-500 mr-1"></i> Режим учителя
-      </button>
-      <button id="btnExitTeacher" onclick="exitTeacherMode()" class="hidden text-xs font-semibold px-3 py-2 rounded-lg bg-slate-800 text-white hover:bg-slate-900">
-        <i class="fa-solid fa-arrow-right-from-bracket mr-1"></i> Выйти к тесту
-      </button>
+    <div>
+      <button id="btnTeacher" onclick="toggleTeacher()" class="btn btn-outline">Режим учителя</button>
     </div>
   </header>
 
-  <!-- ВОДЯНОЙ ЗНАК ФИО НА ЭКРАНЕ -->
-  <div id="watermarkLayer" class="fixed inset-0 z-30 pointer-events-none flex items-center justify-center hidden">
-    <div id="watermarkText" class="text-slate-900/10 text-3xl sm:text-5xl font-black rotate-[-30deg] text-center select-none"></div>
+  <!-- ВОДЯНОЙ ЗНАК -->
+  <div id="watermarkBox" class="watermark hidden">
+    <div id="watermarkText" class="watermark-text"></div>
   </div>
 
-  <!-- ОКНО ВЕБ-КАМЕРЫ УЧЕНИКА -->
-  <div id="webcamWidget" class="fixed bottom-4 right-4 z-40 bg-slate-900 rounded-2xl shadow-2xl p-2 border-2 border-emerald-500 hidden flex flex-col w-48 sm:w-56">
-    <div class="flex items-center justify-between px-2 py-1 mb-1 text-[11px] text-white">
-      <span class="flex items-center gap-1.5 font-bold text-rose-500">
-        <span class="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span> REC
-      </span>
-      <span id="webcamLabel" class="text-slate-300 truncate max-w-[100px]">Ученик</span>
-    </div>
-    <div class="w-full h-28 sm:h-32 bg-black rounded-xl overflow-hidden">
-      <video id="proctorVideo" autoplay playsinline muted class="w-full h-full object-cover mirror-mode"></video>
-    </div>
+  <!-- ОКНО КАМЕРЫ -->
+  <div id="cameraWidget" class="camera-box hidden">
+    <video id="videoElement" autoplay playsinline muted></video>
   </div>
 
-  <main class="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col justify-center">
-
-    <!-- 1. АВТОРИЗАЦИЯ УЧЕНИКА -->
-    <section id="screenStudentAuth" class="max-w-xl mx-auto w-full bg-white rounded-2xl shadow-xl border border-slate-200 p-6 sm:p-8">
-      <div class="text-center mb-6">
-        <div class="inline-flex p-3 rounded-full bg-emerald-50 text-emerald-600 mb-3">
-          <i class="fa-solid fa-user-graduate text-3xl"></i>
-        </div>
-        <h2 id="authExamTitle" class="text-2xl font-bold text-slate-900">СОР по биологии</h2>
-        <p class="text-sm text-slate-500 mt-1">Оценивание с видеоконтролем</p>
-      </div>
-
-      <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 text-xs text-amber-900 space-y-1.5">
-        <div class="font-bold text-amber-800 text-sm mb-1">
-          <i class="fa-solid fa-shield-halved mr-1"></i> Правила сдачи:
-        </div>
-        <p>• Нажмите кнопку ниже и <b>разрешите доступ к веб-камере</b>.</p>
-        <p>• Запрещено сворачивать окно и переключаться на другие вкладки.</p>
-        <p>• При попытке ухода с окна засчитывается нарушение.</p>
-      </div>
-
-      <div id="cameraDeniedAlert" class="hidden p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs mb-4">
-        ⚠️ Камера не обнаружена или доступ запрещен. Разрешите камеру в строке браузера.
-      </div>
-
-      <form onsubmit="handleStartExamWithCamera(event)" class="space-y-4">
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">Фамилия и Имя ученика:</label>
-          <input type="text" id="inputStudentName" required placeholder="Например: Асанов Арман" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Класс:</label>
-            <select id="selectStudentGrade" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm">
-              <option value="7">7 класс</option>
-              <option value="8" selected>8 класс</option>
-              <option value="9">9 класс</option>
-              <option value="10">10 класс</option>
-              <option value="11">11 класс</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Литера:</label>
-            <input type="text" id="inputStudentLetter" required placeholder="А, Б, В..." maxlength="3" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm uppercase">
-          </div>
-        </div>
-
-        <button type="submit" class="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl shadow-md transition flex items-center justify-center gap-2 mt-2">
-          <i class="fa-solid fa-camera"></i>
-          <span>Включить камеру и начать работу</span>
-        </button>
-      </form>
-    </section>
-
-    <!-- 2. ЭКРАН ТЕСТИРОВАНИЯ -->
-    <section id="screenExam" class="hidden flex-col gap-4">
-      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div id="liveStudentLabel" class="text-sm font-bold text-slate-900">Ученик</div>
-          <div id="liveStudentClass" class="text-xs text-slate-500">8 "А" класс</div>
-        </div>
-
-        <!-- ОБЩИЙ ТАЙМЕР -->
-        <div class="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg border border-slate-200">
-          <i class="fa-regular fa-clock text-slate-500"></i>
-          <span class="text-xs font-medium text-slate-600">Осталось:</span>
-          <span id="timerDisplay" class="font-mono font-bold text-slate-900 text-base">25:00</span>
-        </div>
-
-        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-900">
-          <span class="text-xs">Нарушений:</span>
-          <span id="violationsCounter" class="font-bold text-sm">0 / 3</span>
-        </div>
-      </div>
-
-      <div class="bg-white rounded-2xl shadow-md border border-slate-200 p-6 sm:p-8">
-        <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-          <span id="questionNumberBadge" class="text-xs font-bold uppercase text-emerald-600">Вопрос 1</span>
-          <span class="text-xs text-slate-500">Балл: <b id="questionMaxPoints" class="text-slate-900">1</b></span>
-        </div>
-
-        <div id="questionText" class="text-base sm:text-lg font-medium text-slate-800 mb-6"></div>
-
-        <div id="answerOptionsContainer" class="space-y-3 mb-8"></div>
-
-        <div class="flex items-center justify-between pt-4 border-t border-slate-100">
-          <button id="btnPrevQuestion" onclick="prevQuestion()" class="px-4 py-2 border border-slate-300 rounded-xl text-xs font-semibold hover:bg-slate-50 disabled:opacity-30">
-            Назад
-          </button>
-          
-          <div id="questionsQuickNav" class="flex gap-1.5 flex-wrap justify-center"></div>
-
-          <button id="btnNextQuestion" onclick="nextQuestion()" class="px-4 py-2 bg-slate-800 text-white rounded-xl text-xs font-semibold hover:bg-slate-900">
-            Далее
-          </button>
-          <button id="btnFinishExam" onclick="confirmFinishExam()" class="hidden px-5 py-2 bg-emerald-600 text-white rounded-xl text-xs font-semibold hover:bg-emerald-700">
-            Завершить
-          </button>
-        </div>
-      </div>
-    </section>
-
-    <!-- 3. ЭКРАН ИТОГОВ -->
-    <section id="screenResults" class="hidden max-w-xl mx-auto w-full bg-white rounded-2xl shadow-xl border border-slate-200 p-6 sm:p-8 text-center">
-      <div class="inline-flex p-4 rounded-full bg-emerald-100 text-emerald-600 mb-4">
-        <i class="fa-solid fa-check text-4xl"></i>
-      </div>
-      <h2 class="text-2xl font-bold text-slate-900 mb-1">Работа сдана!</h2>
-      <p class="text-xs text-slate-500 mb-6">Результаты подсчитаны.</p>
-
-      <div class="bg-slate-50 border border-slate-200 rounded-xl p-5 mb-6 grid grid-cols-2 gap-4 text-left">
-        <div>
-          <div class="text-xs text-slate-500">Баллы:</div>
-          <div class="text-2xl font-black text-slate-900"><span id="resultScore">0</span> / <span id="resultMaxScore">0</span></div>
-        </div>
-        <div>
-          <div class="text-xs text-slate-500">Процент:</div>
-          <div id="resultPercent" class="text-2xl font-black text-emerald-600">0%</div>
-        </div>
-        <div class="col-span-2 pt-2 border-t border-slate-200">
-          <div class="text-xs text-slate-500">Нарушений:</div>
-          <div id="resultViolationsBadge" class="text-sm font-bold text-slate-800">0</div>
-        </div>
-      </div>
-
-      <div id="sheetsStatusBlock" class="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-xs mb-4">
-        <span id="sheetsStatusText">Отправка в Google Таблицу...</span>
-      </div>
-    </section>
-
-    <!-- 4. ПАНЕЛЬ УЧИТЕЛЯ -->
-    <section id="screenTeacherDashboard" class="hidden flex-col gap-6">
-      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-        <div class="flex border-b border-slate-200 mb-6 gap-6">
-          <button onclick="switchTeacherTab('tabTasks')" id="tabBtnTasks" class="pb-3 text-sm font-bold text-emerald-600 border-b-2 border-emerald-600">
-            Задания
-          </button>
-          <button onclick="switchTeacherTab('tabSheets')" id="tabBtnSheets" class="pb-3 text-sm font-semibold text-slate-500 border-b-2 border-transparent">
-            Google Таблица
-          </button>
-          <button onclick="switchTeacherTab('tabLink')" id="tabBtnLink" class="pb-3 text-sm font-semibold text-slate-500 border-b-2 border-transparent">
-            Ссылка
-          </button>
-        </div>
-
-        <!-- Вкладка: Задания -->
-        <div id="tabContentTasks" class="space-y-4">
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
-            <div>
-              <label class="block text-xs font-semibold mb-1">Название работы:</label>
-              <input type="text" id="configExamTitle" class="w-full p-2 border rounded text-xs bg-white">
-            </div>
-            <div>
-              <label class="block text-xs font-semibold mb-1">Время (минут):</label>
-              <input type="number" id="configExamDuration" class="w-full p-2 border rounded text-xs bg-white">
-            </div>
-            <div>
-              <label class="block text-xs font-semibold mb-1">Лимит нарушений:</label>
-              <input type="number" id="configMaxViolations" class="w-full p-2 border rounded text-xs bg-white">
-            </div>
-          </div>
-
-          <div id="teacherQuestionsList" class="space-y-3"></div>
-
-          <button onclick="saveExamConfiguration()" class="px-5 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold">
-            Сохранить настройки
-          </button>
-        </div>
-
-        <!-- Вкладка: Таблица -->
-        <div id="tabContentSheets" class="hidden space-y-4">
-          <label class="block text-xs font-semibold">URL веб-приложения Google Apps Script:</label>
-          <input type="url" id="configGoogleSheetUrl" placeholder="https://script.google.com/macros/s/.../exec" class="w-full p-2.5 border rounded-xl text-xs">
-          <button onclick="saveExamConfiguration()" class="px-5 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold">
-            Сохранить ссылку таблицы
-          </button>
-        </div>
-
-        <!-- Вкладка: Ссылка -->
-        <div id="tabContentLink" class="hidden space-y-3">
-          <input type="text" id="studentDirectLink" readonly class="w-full p-2.5 border rounded-xl text-xs bg-slate-50 font-mono">
-          <button onclick="navigator.clipboard.writeText(document.getElementById('studentDirectLink').value); alert('Скопировано!')" class="px-4 py-2 bg-slate-800 text-white rounded-xl text-xs font-bold">
-            Скопировать ссылку
-          </button>
-        </div>
-      </div>
-    </section>
-
-  </main>
-
-  <!-- ОКНО ВХОДА УЧИТЕЛЯ -->
-  <div id="modalTeacherAuth" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-2xl max-w-xs w-full p-6 text-center shadow-2xl">
-      <h3 class="font-bold text-slate-900 mb-2">Пароль учителя</h3>
-      <input type="password" id="inputTeacherPassword" placeholder="bio2026" class="w-full p-2.5 border rounded-xl text-sm mb-3 text-center">
-      <div class="flex gap-2">
-        <button onclick="closeTeacherAuthModal()" class="w-1/2 py-2 border rounded-xl text-xs">Отмена</button>
-        <button onclick="handleTeacherLogin()" class="w-1/2 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold">Войти</button>
-      </div>
+  <!-- 1. АВТОРИЗАЦИЯ УЧЕНИКА -->
+  <div id="authScreen" class="card">
+    <h2 style="margin-bottom: 8px; font-size: 20px; text-align: center;">Вход на тестирование</h2>
+    <div class="alert-box">
+      <b>Правила сдачи:</b><br>
+      1. Нажмите кнопку «Разрешить камеру» при появлении запроса.<br>
+      2. Не сворачивайте окно браузера и не переключайтесь на другие программы.
     </div>
-  </div>
 
-  <!-- ОКНО ПРЕДУПРЕЖДЕНИЯ -->
-  <div id="modalViolation" class="fixed inset-0 bg-rose-950/70 z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-2xl max-w-sm w-full p-6 text-center shadow-2xl border border-rose-500">
-      <h3 class="text-base font-bold text-rose-600 mb-2">ВНИМАНИЕ: УХОД С ОКНА!</h3>
-      <p class="text-xs text-slate-600 mb-4">Вы покинули окно теста. Это действие зафиксировано.</p>
-      <div class="bg-rose-50 text-rose-800 p-2 rounded-lg text-xs font-bold mb-4">
-        Осталось попыток: <span id="modalViolationsLeft">2</span>
+    <form onsubmit="startExam(event)">
+      <label style="font-size: 12px; font-weight: 600;">ФИО ученика:</label>
+      <input type="text" id="stName" required placeholder="Например: Асанов Арман" class="input-box">
+
+      <div style="display: flex; gap: 10px;">
+        <div style="flex: 1;">
+          <label style="font-size: 12px; font-weight: 600;">Класс:</label>
+          <select id="stGrade" class="input-box">
+            <option value="7">7 класс</option>
+            <option value="8" selected>8 класс</option>
+            <option value="9">9 класс</option>
+          </select>
+        </div>
+        <div style="flex: 1;">
+          <label style="font-size: 12px; font-weight: 600;">Литера:</label>
+          <input type="text" id="stLetter" required placeholder="А, Б..." class="input-box" maxlength="2">
+        </div>
       </div>
-      <button onclick="dismissViolationModal()" class="w-full py-2 bg-rose-600 text-white rounded-xl text-xs font-bold">
-        Продолжить
+
+      <button type="submit" class="btn btn-green" style="width: 100%; padding: 12px; font-size: 14px; margin-top: 10px;">
+        Начать работу с камерой
       </button>
+    </form>
+  </div>
+
+  <!-- 2. ЭКРАН СОР -->
+  <div id="examScreen" class="card hidden">
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 16px;">
+      <div>
+        <b id="examStudentName" style="font-size: 14px;"></b>
+      </div>
+      <div>
+        Осталось времени: <b id="timer" style="font-size: 16px; color: #059669;">25:00</b>
+      </div>
+      <div>
+        Нарушений: <b id="violCount" style="color: #dc2626;">0</b>
+      </div>
     </div>
+
+    <div style="margin-bottom: 16px;">
+      <span id="qNumber" style="font-size: 12px; font-weight: bold; color: #059669;">Вопрос 1</span>
+      <p id="qText" style="font-size: 16px; font-weight: 500; margin-top: 8px;"></p>
+    </div>
+
+    <div id="optionsContainer" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px;"></div>
+
+    <div style="display: flex; justify-content: space-between;">
+      <button onclick="prevQ()" id="btnPrev" class="btn btn-outline">Назад</button>
+      <button onclick="nextQ()" id="btnNext" class="btn btn-dark">Далее</button>
+      <button onclick="finishExam()" id="btnFinish" class="btn btn-green hidden">Завершить</button>
+    </div>
+  </div>
+
+  <!-- 3. ЭКРАН ИТОГОВ -->
+  <div id="resultScreen" class="card hidden" style="text-align: center;">
+    <h2 style="margin-bottom: 12px;">Работа завершена!</h2>
+    <p style="font-size: 18px; margin-bottom: 8px;">Ваш результат: <b id="finalScore">0</b> баллов</p>
+    <p style="font-size: 14px; color: #64748b;" id="sheetNotice">Результаты передаются учителю.</p>
+  </div>
+
+  <!-- 4. ПАНЕЛЬ УЧИТЕЛЯ -->
+  <div id="teacherScreen" class="card hidden">
+    <h3 style="margin-bottom: 16px;">Панель управления (Google Таблица)</h3>
+    <label style="font-size: 12px; font-weight: 600;">Ссылка на веб-приложение Google Таблицы (Apps Script URL):</label>
+    <input type="text" id="sheetUrlInput" class="input-box" placeholder="https://script.google.com/macros/s/.../exec">
+    <button onclick="saveSheetUrl()" class="btn btn-green">Сохранить ссылку</button>
+    <button onclick="toggleTeacher()" class="btn btn-outline" style="margin-left: 8px;">Закрыть</button>
   </div>
 
   <script>
-    const DEFAULT_CONFIG = {
-      examTitle: "СОР по биологии",
-      durationMinutes: 25,
-      maxViolations: 3,
-      googleSheetUrl: "",
-      teacherPassword: "bio2026",
-      questions: [
-        {
-          id: 1,
-          type: "single_choice",
-          text: "Какой органоид клетки называют «энергетической станцией», так как в нем синтезируется АТФ?",
-          points: 1,
-          options: ["Митохондрия", "Комплекс Гольджи", "Лизосома", "Рибосома"],
-          correct: 0
-        },
-        {
-          id: 2,
-          type: "single_choice",
-          text: "В какую фазу фотосинтеза происходит выделение молекулярного кислорода?",
-          points: 1,
-          options: ["Световая фаза", "Темновая фаза", "Синтез глюкозы", "Гликолиз"],
-          correct: 0
-        },
-        {
-          id: 3,
-          type: "multiple_choice",
-          text: "Выберите сосуды с артериальной кровью у человека:",
-          points: 2,
-          options: ["Аорта", "Легочные вены", "Легочный ствол", "Полая вена"],
-          correct: [0, 1]
-        }
-      ]
-    };
-
-    let config = JSON.parse(localStorage.getItem('bio_exam_config')) || DEFAULT_CONFIG;
-    let student = { name: '', grade: '', letter: '' };
-    let currentQuestionIdx = 0;
-    let studentAnswers = {};
-    let timerInterval = null;
-    let secondsLeft = 0;
-    let violations = [];
-    let isExamActive = false;
-    let cameraStream = null;
-
-    window.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('studentDirectLink').value = window.location.origin + window.location.pathname;
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get('mode') === 'teacher') {
-        openTeacherDashboard();
-      } else {
-        showStudentAuth();
+    const questions = [
+      {
+        text: "Какой органоид клетки обеспечивает синтез АТФ в процессе клеточного дыхания?",
+        options: ["Митохондрия", "Комплекс Гольджи", "Лизосома", "Рибосома"],
+        correct: 0,
+        points: 1
+      },
+      {
+        text: "В какую фазу фотосинтеза выделяется свободный кислород?",
+        options: ["Световая фаза", "Темновая фаза", "Синтез углеводов"],
+        correct: 0,
+        points: 1
+      },
+      {
+        text: "Какой сосуд несет артериальную кровь от сердца ко всем органам?",
+        options: ["Аорта", "Легочный ствол", "Верхняя полая вена"],
+        correct: 0,
+        points: 1
       }
-      setupAntiCheat();
-    });
+    ];
 
-    function showStudentAuth() {
-      document.getElementById('screenStudentAuth').classList.remove('hidden');
-      document.getElementById('screenExam').classList.add('hidden');
-      document.getElementById('screenResults').classList.add('hidden');
-      document.getElementById('screenTeacherDashboard').classList.add('hidden');
-      document.getElementById('btnSwitchToTeacher').classList.remove('hidden');
-      document.getElementById('btnExitTeacher').classList.add('hidden');
-      document.getElementById('authExamTitle').innerText = config.examTitle;
-    }
+    let currentQ = 0;
+    let answers = {};
+    let violations = 0;
+    let timerSec = 25 * 60;
+    let timerId = null;
+    let student = {};
+    let stream = null;
 
-    function openTeacherDashboard() {
-      document.getElementById('screenStudentAuth').classList.add('hidden');
-      document.getElementById('screenExam').classList.add('hidden');
-      document.getElementById('screenResults').classList.add('hidden');
-      document.getElementById('screenTeacherDashboard').classList.remove('hidden');
-      document.getElementById('btnSwitchToTeacher').classList.add('hidden');
-      document.getElementById('btnExitTeacher').classList.remove('hidden');
-
-      document.getElementById('configExamTitle').value = config.examTitle;
-      document.getElementById('configExamDuration').value = config.durationMinutes;
-      document.getElementById('configMaxViolations').value = config.maxViolations;
-      document.getElementById('configGoogleSheetUrl').value = config.googleSheetUrl || "";
-
-      renderTeacherQuestions();
-    }
-
-    function exitTeacherMode() {
-      window.history.replaceState({}, document.title, window.location.pathname);
-      showStudentAuth();
-    }
-
-    function openTeacherAuthModal() {
-      document.getElementById('inputTeacherPassword').value = '';
-      document.getElementById('modalTeacherAuth').classList.remove('hidden');
-    }
-
-    function closeTeacherAuthModal() {
-      document.getElementById('modalTeacherAuth').classList.add('hidden');
-    }
-
-    function handleTeacherLogin() {
-      if (document.getElementById('inputTeacherPassword').value === config.teacherPassword) {
-        closeTeacherAuthModal();
-        openTeacherDashboard();
-      } else {
-        alert("Неверный пароль!");
-      }
-    }
-
-    function switchTeacherTab(tab) {
-      ['tabTasks', 'tabSheets', 'tabLink'].forEach(t => {
-        document.getElementById('tabBtn' + t.slice(3)).classList.remove('text-emerald-600', 'border-emerald-600', 'font-bold');
-        document.getElementById('tabBtn' + t.slice(3)).classList.add('text-slate-500', 'border-transparent');
-        document.getElementById('tabContent' + t.slice(3)).classList.add('hidden');
-      });
-      document.getElementById('tabBtn' + tab.slice(3)).classList.add('text-emerald-600', 'border-emerald-600', 'font-bold');
-      document.getElementById('tabContent' + tab.slice(3)).classList.remove('hidden');
-    }
-
-    function renderTeacherQuestions() {
-      const container = document.getElementById('teacherQuestionsList');
-      container.innerHTML = '';
-      config.questions.forEach((q, i) => {
-        const item = document.createElement('div');
-        item.className = "p-3 bg-slate-50 border rounded-xl space-y-2";
-        item.innerHTML = `
-          <div class="flex justify-between items-center text-xs">
-            <b>Вопрос #${i + 1}</b>
-            <button onclick="config.questions.splice(${i},1); renderTeacherQuestions();" class="text-rose-500">Удалить</button>
-          </div>
-          <input type="text" value="${q.text}" onchange="config.questions[${i}].text = this.value" class="w-full p-2 border rounded text-xs bg-white">
-        `;
-        container.appendChild(item);
-      });
-    }
-
-    function saveExamConfiguration() {
-      config.examTitle = document.getElementById('configExamTitle').value;
-      config.durationMinutes = parseInt(document.getElementById('configExamDuration').value) || 25;
-      config.maxViolations = parseInt(document.getElementById('configMaxViolations').value) || 3;
-      config.googleSheetUrl = document.getElementById('configGoogleSheetUrl').value.trim();
-      localStorage.setItem('bio_exam_config', JSON.stringify(config));
-      alert("Настройки сохранены!");
-    }
-
-    // ЗАПУСК КАМЕРЫ И ТЕСТА
-    async function handleStartExamWithCamera(e) {
+    function startExam(e) {
       e.preventDefault();
-      student.name = document.getElementById('inputStudentName').value.trim();
-      student.grade = document.getElementById('selectStudentGrade').value;
-      student.letter = document.getElementById('inputStudentLetter').value.trim().toUpperCase();
+      student.name = document.getElementById('stName').value.trim();
+      student.grade = document.getElementById('stGrade').value;
+      student.letter = document.getElementById('stLetter').value.trim().toUpperCase();
 
-      if (!student.name) return;
-
-      try {
-        cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        document.getElementById('proctorVideo').srcObject = cameraStream;
-      } catch (err) {
-        document.getElementById('cameraDeniedAlert').classList.remove('hidden');
-        return;
-      }
-
-      // Переход в Fullscreen (если разрешено)
-      try {
-        if (document.documentElement.requestFullscreen) {
-          await document.documentElement.requestFullscreen();
-        }
-      } catch (fErr) {}
-
-      document.getElementById('screenStudentAuth').classList.add('hidden');
-      document.getElementById('screenExam').classList.remove('hidden');
-      document.getElementById('webcamWidget').classList.remove('hidden');
-      document.getElementById('watermarkLayer').classList.remove('hidden');
-      document.getElementById('watermarkText').innerText = `${student.name} • ${student.grade}${student.letter}`;
-      document.getElementById('webcamLabel').innerText = student.name;
-
-      document.getElementById('liveStudentLabel').innerText = student.name;
-      document.getElementById('liveStudentClass').innerText = `${student.grade} "${student.letter}" класс`;
-
-      isExamActive = true;
-      violations = [];
-      studentAnswers = {};
-      currentQuestionIdx = 0;
-      secondsLeft = config.durationMinutes * 60;
-
-      startTimer();
-      renderCurrentQuestion();
+      navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        .then(s => {
+          stream = s;
+          document.getElementById('videoElement').srcObject = s;
+          initExam();
+        })
+        .catch(() => {
+          alert("Не удалось включить камеру! Разрешите доступ к камере в браузере.");
+        });
     }
+
+    function initExam() {
+      document.getElementById('authScreen').classList.add('hidden');
+      document.getElementById('examScreen').classList.remove('hidden');
+      document.getElementById('cameraWidget').classList.remove('hidden');
+      document.getElementById('watermarkBox').classList.remove('hidden');
+      document.getElementById('watermarkText').innerText = `${student.name} | ${student.grade}${student.letter}`;
+      document.getElementById('examStudentName').innerText = `${student.name} (${student.grade} "${student.letter}")`;
+
+      renderQ();
+      startTimer();
+      bindAntiCheat();
+    }
+
+    function renderQ() {
+      const q = questions[currentQ];
+      document.getElementById('qNumber').innerText = `Вопрос ${currentQ + 1} из ${questions.length}`;
+      document.getElementById('qText').innerText = q.text;
+
+      const container = document.getElementById('optionsContainer');
+      container.innerHTML = '';
+
+      q.options.forEach((opt, idx) => {
+        const lbl = document.createElement('label');
+        lbl.style.padding = "10px";
+        lbl.style.border = "1px solid #cbd5e1";
+        lbl.style.borderRadius = "8px";
+        lbl.style.cursor = "pointer";
+        lbl.style.display = "flex";
+        lbl.style.alignItems = "center";
+        lbl.style.gap = "8px";
+
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'q_opt';
+        radio.checked = answers[currentQ] === idx;
+        radio.onchange = () => { answers[currentQ] = idx; };
+
+        lbl.appendChild(radio);
+        lbl.appendChild(document.createTextNode(opt));
+        container.appendChild(lbl);
+      });
+
+      document.getElementById('btnPrev').disabled = currentQ === 0;
+      if (currentQ === questions.length - 1) {
+        document.getElementById('btnNext').classList.add('hidden');
+        document.getElementById('btnFinish').classList.remove('hidden');
+      } else {
+        document.getElementById('btnNext').classList.remove('hidden');
+        document.getElementById('btnFinish').classList.add('hidden');
+      }
+    }
+
+    function prevQ() { if (currentQ > 0) { currentQ--; renderQ(); } }
+    function nextQ() { if (currentQ < questions.length - 1) { currentQ++; renderQ(); } }
 
     function startTimer() {
-      updateTimerDisplay();
-      timerInterval = setInterval(() => {
-        secondsLeft--;
-        updateTimerDisplay();
-        if (secondsLeft <= 0) {
-          clearInterval(timerInterval);
+      timerId = setInterval(() => {
+        timerSec--;
+        const m = Math.floor(timerSec / 60).toString().padStart(2, '0');
+        const s = (timerSec % 60).toString().padStart(2, '0');
+        document.getElementById('timer').innerText = `${m}:${s}`;
+        if (timerSec <= 0) {
+          clearInterval(timerId);
           finishExam();
         }
       }, 1000);
     }
 
-    function updateTimerDisplay() {
-      const m = Math.floor(secondsLeft / 60).toString().padStart(2, '0');
-      const s = (secondsLeft % 60).toString().padStart(2, '0');
-      document.getElementById('timerDisplay').innerText = `${m}:${s}`;
-    }
-
-    function renderCurrentQuestion() {
-      const q = config.questions[currentQuestionIdx];
-      document.getElementById('questionNumberBadge').innerText = `Вопрос ${currentQuestionIdx + 1} из ${config.questions.length}`;
-      document.getElementById('questionMaxPoints').innerText = q.points;
-      document.getElementById('questionText').innerText = q.text;
-
-      const container = document.getElementById('answerOptionsContainer');
-      container.innerHTML = '';
-
-      if (q.type === 'single_choice') {
-        q.options.forEach((opt, idx) => {
-          const isSelected = studentAnswers[q.id] === idx;
-          const label = document.createElement('label');
-          label.className = `flex items-center gap-3 p-3 rounded-xl border cursor-pointer ${isSelected ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200'}`;
-          label.innerHTML = `
-            <input type="radio" name="ans" ${isSelected ? 'checked' : ''} onchange="studentAnswers[${q.id}] = ${idx}; renderCurrentQuestion();" class="w-4 h-4 text-emerald-600">
-            <span class="text-sm">${opt}</span>
-          `;
-          container.appendChild(label);
-        });
-      } else if (q.type === 'multiple_choice') {
-        const curAns = studentAnswers[q.id] || [];
-        q.options.forEach((opt, idx) => {
-          const isSelected = curAns.includes(idx);
-          const label = document.createElement('label');
-          label.className = `flex items-center gap-3 p-3 rounded-xl border cursor-pointer ${isSelected ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200'}`;
-          label.innerHTML = `
-            <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleMulti(${q.id}, ${idx})" class="w-4 h-4 text-emerald-600">
-            <span class="text-sm">${opt}</span>
-          `;
-          container.appendChild(label);
-        });
-      }
-
-      document.getElementById('btnPrevQuestion').disabled = currentQuestionIdx === 0;
-      if (currentQuestionIdx === config.questions.length - 1) {
-        document.getElementById('btnNextQuestion').classList.add('hidden');
-        document.getElementById('btnFinishExam').classList.remove('hidden');
-      } else {
-        document.getElementById('btnNextQuestion').classList.remove('hidden');
-        document.getElementById('btnFinishExam').classList.add('hidden');
-      }
-
-      renderNav();
-    }
-
-    function toggleMulti(qId, idx) {
-      if (!Array.isArray(studentAnswers[qId])) studentAnswers[qId] = [];
-      const pos = studentAnswers[qId].indexOf(idx);
-      if (pos > -1) studentAnswers[qId].splice(pos, 1);
-      else studentAnswers[qId].push(idx);
-      renderCurrentQuestion();
-    }
-
-    function renderNav() {
-      const nav = document.getElementById('questionsQuickNav');
-      nav.innerHTML = '';
-      config.questions.forEach((q, idx) => {
-        const btn = document.createElement('button');
-        btn.onclick = () => { currentQuestionIdx = idx; renderCurrentQuestion(); };
-        btn.innerText = idx + 1;
-        btn.className = `w-7 h-7 rounded text-xs font-bold ${idx === currentQuestionIdx ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}`;
-        nav.appendChild(btn);
+    function bindAntiCheat() {
+      window.addEventListener('blur', () => {
+        violations++;
+        document.getElementById('violCount').innerText = violations;
+        alert("Предупреждение: уход с окна зафиксирован!");
       });
-    }
-
-    function prevQuestion() {
-      if (currentQuestionIdx > 0) { currentQuestionIdx--; renderCurrentQuestion(); }
-    }
-
-    function nextQuestion() {
-      if (currentQuestionIdx < config.questions.length - 1) { currentQuestionIdx++; renderCurrentQuestion(); }
-    }
-
-    function confirmFinishExam() {
-      if (confirm("Завершить работу?")) finishExam();
     }
 
     function finishExam() {
-      isExamActive = false;
-      clearInterval(timerInterval);
-      document.getElementById('webcamWidget').classList.add('hidden');
-      document.getElementById('watermarkLayer').classList.add('hidden');
+      clearInterval(timerId);
+      if (stream) stream.getTracks().forEach(t => t.stop());
 
-      if (cameraStream) {
-        cameraStream.getTracks().forEach(t => t.stop());
-      }
+      document.getElementById('examScreen').classList.add('hidden');
+      document.getElementById('cameraWidget').classList.add('hidden');
+      document.getElementById('watermarkBox').classList.add('hidden');
+      document.getElementById('resultScreen').classList.remove('hidden');
 
       let score = 0;
-      let maxScore = 0;
-      config.questions.forEach(q => {
-        maxScore += q.points;
-        const ans = studentAnswers[q.id];
-        if (q.type === 'single_choice' && ans === q.correct) score += q.points;
-        if (q.type === 'multiple_choice' && Array.isArray(ans)) {
-          if ([...ans].sort().toString() === [...q.correct].sort().toString()) score += q.points;
-        }
+      questions.forEach((q, idx) => {
+        if (answers[idx] === q.correct) score += q.points;
       });
 
-      const percent = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+      document.getElementById('finalScore').innerText = `${score} / ${questions.length}`;
 
-      document.getElementById('screenExam').classList.add('hidden');
-      document.getElementById('screenResults').classList.remove('hidden');
-
-      document.getElementById('resultScore').innerText = score;
-      document.getElementById('resultMaxScore').innerText = maxScore;
-      document.getElementById('resultPercent').innerText = `${percent}%`;
-      document.getElementById('resultViolationsBadge').innerText = `${violations.length} наруш.`;
-
-      sendToSheets(score, maxScore, percent);
-    }
-
-    function sendToSheets(score, maxScore, percent) {
-      const txt = document.getElementById('sheetsStatusText');
-      if (!config.googleSheetUrl) {
-        txt.innerText = "Таблица не подключена учителем.";
-        return;
-      }
-      fetch(config.googleSheetUrl, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          timestamp: new Date().toLocaleString('ru-RU'),
-          student_name: student.name,
-          student_class: `${student.grade} "${student.letter}"`,
-          exam_title: config.examTitle,
-          score: score,
-          max_score: maxScore,
-          percent: percent,
-          violations_count: violations.length,
-          violations_log: violations.join("; ") || "Нет нарушений"
-        })
-      }).then(() => {
-        txt.innerText = "Результат успешно отправлен в таблицу!";
-      }).catch(() => {
-        txt.innerText = "Ошибка отправки в таблицу.";
-      });
-    }
-
-    function setupAntiCheat() {
-      window.addEventListener('blur', () => {
-        if (!isExamActive) return;
-        registerViolation("Потеря фокуса окна");
-      });
-
-      document.addEventListener('visibilitychange', () => {
-        if (!isExamActive) return;
-        if (document.hidden) registerViolation("Сворачивание вкладки");
-      });
-    }
-
-    function registerViolation(reason) {
-      violations.push(`[${new Date().toLocaleTimeString('ru-RU')}] ${reason}`);
-      const count = violations.length;
-      document.getElementById('violationsCounter').innerText = `${count} / ${config.maxViolations}`;
-      const left = config.maxViolations - count;
-
-      if (left <= 0) {
-        alert("Превышен лимит нарушений! Работа принудительно завершена.");
-        finishExam();
-      } else {
-        document.getElementById('modalViolationsLeft').innerText = left;
-        document.getElementById('screenExam').classList.add('violation-blur');
-        document.getElementById('modalViolation').classList.remove('hidden');
+      const sheetUrl = localStorage.getItem('bio_sheet_url');
+      if (sheetUrl) {
+        fetch(sheetUrl, {
+          method: "POST",
+          mode: "no-cors",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            timestamp: new Date().toLocaleString('ru-RU'),
+            student_name: student.name,
+            student_class: `${student.grade} "${student.letter}"`,
+            exam_title: "СОР по биологии",
+            score: score,
+            max_score: questions.length,
+            percent: Math.round((score / questions.length) * 100) + '%',
+            violations_count: violations,
+            violations_log: `Нарушений фокуса: ${violations}`
+          })
+        }).then(() => {
+          document.getElementById('sheetNotice').innerText = "Данные успешно отправлены в Google Таблицу!";
+        });
       }
     }
 
-    function dismissViolationModal() {
-      document.getElementById('modalViolation').classList.add('hidden');
-      document.getElementById('screenExam').classList.remove('violation-blur');
+    function toggleTeacher() {
+      const scr = document.getElementById('teacherScreen');
+      scr.classList.toggle('hidden');
+      document.getElementById('sheetUrlInput').value = localStorage.getItem('bio_sheet_url') || '';
+    }
+
+    function saveSheetUrl() {
+      localStorage.setItem('bio_sheet_url', document.getElementById('sheetUrlInput').value.trim());
+      alert("Ссылка на таблицу сохранена!");
+      toggleTeacher();
     }
   </script>
 </body>
