@@ -6,298 +6,285 @@
   <title>СОР / СОЧ по биологии</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f1f5f9; color: #1e293b; user-select: none; }
-    @media print { body { display: none !important; } }
-    .header { background: #ffffff; border-bottom: 1px solid #cbd5e1; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; }
-    .btn { cursor: pointer; padding: 8px 16px; border-radius: 8px; font-weight: 600; font-size: 13px; border: none; transition: 0.2s; }
-    .btn-green { background: #059669; color: #ffffff; }
-    .btn-green:hover { background: #047857; }
-    .btn-dark { background: #1e293b; color: #ffffff; }
+    body { font-family: Arial, sans-serif; background: #f1f5f9; color: #1e293b; padding: 20px; }
+    .header { background: #fff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; max-width: 700px; margin: 0 auto 20px; }
+    .card { background: #fff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 24px; max-width: 700px; margin: 0 auto; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+    .btn { cursor: pointer; padding: 10px 18px; border-radius: 8px; font-weight: bold; font-size: 13px; border: none; }
+    .btn-green { background: #059669; color: #fff; }
+    .btn-dark { background: #1e293b; color: #fff; }
     .btn-outline { background: transparent; border: 1px solid #94a3b8; color: #334155; }
-    .card { background: #ffffff; border-radius: 14px; border: 1px solid #cbd5e1; padding: 24px; max-width: 650px; margin: 30px auto; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-    .input-box { width: 100%; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; margin-top: 6px; margin-bottom: 14px; }
-    .alert-box { background: #fef3c7; border: 1px solid #fde047; padding: 12px; border-radius: 8px; font-size: 12px; color: #854d0e; margin-bottom: 16px; line-height: 1.5; }
+    .input-field { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; margin-top: 6px; margin-bottom: 14px; }
     .hidden { display: none !important; }
-    .camera-box { position: fixed; bottom: 20px; right: 20px; width: 200px; height: 140px; background: #000; border: 2px solid #059669; border-radius: 12px; overflow: hidden; z-index: 50; }
-    .camera-box video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-    .blur-screen { filter: blur(20px); pointer-events: none; }
-    .watermark { position: fixed; inset: 0; pointer-events: none; display: flex; align-items: center; justify-content: center; z-index: 40; }
-    .watermark-text { font-size: 42px; font-weight: 900; color: rgba(15, 23, 42, 0.08); transform: rotate(-25deg); text-align: center; }
+    .camera-widget { position: fixed; bottom: 16px; right: 16px; width: 180px; height: 130px; background: #000; border: 2px solid #059669; border-radius: 10px; overflow: hidden; z-index: 100; }
+    .camera-widget video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+    .option-item { padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+    .option-item:hover { background: #f8fafc; }
+    .warn-box { background: #fffbeb; border: 1px solid #fef3c7; color: #92400e; padding: 12px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; line-height: 1.4; }
   </style>
 </head>
-<body oncontextmenu="return false;">
+<body>
 
-  <!-- ШАПКА -->
-  <header class="header">
+  <!-- ВЕРХНИЙ БЛОК -->
+  <div class="header">
     <div>
-      <h1 style="font-size: 16px; font-weight: bold;">Биология СОР / СОЧ</h1>
-      <span style="font-size: 12px; color: #64748b;">Система онлайн-оценивания</span>
+      <h1 style="font-size: 16px;">Биология: Суммативное оценивание</h1>
+      <span style="font-size: 12px; color: #64748b;">Онлайн-платформа сдачи</span>
     </div>
-    <div>
-      <button id="btnTeacher" onclick="toggleTeacher()" class="btn btn-outline">Режим учителя</button>
-    </div>
-  </header>
-
-  <!-- ВОДЯНОЙ ЗНАК -->
-  <div id="watermarkBox" class="watermark hidden">
-    <div id="watermarkText" class="watermark-text"></div>
+    <button onclick="toggleTeacherView()" class="btn btn-outline">Учителю</button>
   </div>
 
   <!-- ОКНО КАМЕРЫ -->
-  <div id="cameraWidget" class="camera-box hidden">
-    <video id="videoElement" autoplay playsinline muted></video>
+  <div id="camBox" class="camera-widget hidden">
+    <video id="webcamView" autoplay playsinline muted></video>
   </div>
 
-  <!-- 1. АВТОРИЗАЦИЯ УЧЕНИКА -->
-  <div id="authScreen" class="card">
-    <h2 style="margin-bottom: 8px; font-size: 20px; text-align: center;">Вход на тестирование</h2>
-    <div class="alert-box">
-      <b>Правила сдачи:</b><br>
-      1. Нажмите кнопку «Разрешить камеру» при появлении запроса.<br>
-      2. Не сворачивайте окно браузера и не переключайтесь на другие программы.
+  <!-- ЭКРАН 1: ВХОД УЧЕНИКА -->
+  <div id="authBox" class="card">
+    <h2 style="font-size: 18px; margin-bottom: 12px; text-align: center;">Регистрация учащегося</h2>
+    <div class="warn-box">
+      <b>Инструкция:</b> Введите свои данные и нажмите кнопку начала. Разрешите браузеру доступ к веб-камере и не переключайтесь на другие вкладки во время выполнения.
     </div>
 
-    <form onsubmit="startExam(event)">
-      <label style="font-size: 12px; font-weight: 600;">ФИО ученика:</label>
-      <input type="text" id="stName" required placeholder="Например: Асанов Арман" class="input-box">
+    <form onsubmit="beginExam(event)">
+      <label style="font-size: 12px; font-weight: bold;">Фамилия и Имя:</label>
+      <input type="text" id="studentName" required placeholder="Например: Иванов Иван" class="input-field">
 
       <div style="display: flex; gap: 10px;">
         <div style="flex: 1;">
-          <label style="font-size: 12px; font-weight: 600;">Класс:</label>
-          <select id="stGrade" class="input-box">
+          <label style="font-size: 12px; font-weight: bold;">Класс:</label>
+          <select id="studentGrade" class="input-field">
             <option value="7">7 класс</option>
             <option value="8" selected>8 класс</option>
             <option value="9">9 класс</option>
+            <option value="10">10 класс</option>
+            <option value="11">11 класс</option>
           </select>
         </div>
         <div style="flex: 1;">
-          <label style="font-size: 12px; font-weight: 600;">Литера:</label>
-          <input type="text" id="stLetter" required placeholder="А, Б..." class="input-box" maxlength="2">
+          <label style="font-size: 12px; font-weight: bold;">Литера:</label>
+          <input type="text" id="studentLetter" required placeholder="А, Б, В..." maxlength="2" class="input-field">
         </div>
       </div>
 
-      <button type="submit" class="btn btn-green" style="width: 100%; padding: 12px; font-size: 14px; margin-top: 10px;">
-        Начать работу с камерой
+      <button type="submit" class="btn btn-green" style="width: 100%; padding: 12px; font-size: 14px; margin-top: 6px;">
+        Начать работу
       </button>
     </form>
   </div>
 
-  <!-- 2. ЭКРАН СОР -->
-  <div id="examScreen" class="card hidden">
-    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 16px;">
-      <div>
-        <b id="examStudentName" style="font-size: 14px;"></b>
-      </div>
-      <div>
-        Осталось времени: <b id="timer" style="font-size: 16px; color: #059669;">25:00</b>
-      </div>
-      <div>
-        Нарушений: <b id="violCount" style="color: #dc2626;">0</b>
-      </div>
+  <!-- ЭКРАН 2: ТЕСТИРОВАНИЕ -->
+  <div id="examBox" class="card hidden">
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 16px;">
+      <span id="studentDisplay" style="font-weight: bold; font-size: 13px;"></span>
+      <span style="font-size: 13px;">Осталось: <b id="timerDisplay" style="color: #059669; font-size: 15px;">25:00</b></span>
+      <span style="font-size: 12px; color: #dc2626;">Вне окна: <b id="counterDisplay">0</b></span>
     </div>
 
     <div style="margin-bottom: 16px;">
-      <span id="qNumber" style="font-size: 12px; font-weight: bold; color: #059669;">Вопрос 1</span>
-      <p id="qText" style="font-size: 16px; font-weight: 500; margin-top: 8px;"></p>
+      <div id="questionNumber" style="font-size: 12px; font-weight: bold; color: #059669; margin-bottom: 6px;">Вопрос 1</div>
+      <p id="questionContent" style="font-size: 15px; font-weight: 500;"></p>
     </div>
 
-    <div id="optionsContainer" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px;"></div>
+    <div id="optionsList" style="margin-bottom: 20px;"></div>
 
     <div style="display: flex; justify-content: space-between;">
-      <button onclick="prevQ()" id="btnPrev" class="btn btn-outline">Назад</button>
-      <button onclick="nextQ()" id="btnNext" class="btn btn-dark">Далее</button>
-      <button onclick="finishExam()" id="btnFinish" class="btn btn-green hidden">Завершить</button>
+      <button onclick="prevQuestion()" id="btnBack" class="btn btn-outline">Назад</button>
+      <button onclick="nextQuestion()" id="btnForward" class="btn btn-dark">Далее</button>
+      <button onclick="submitExam()" id="btnDone" class="btn btn-green hidden">Завершить</button>
     </div>
   </div>
 
-  <!-- 3. ЭКРАН ИТОГОВ -->
-  <div id="resultScreen" class="card hidden" style="text-align: center;">
-    <h2 style="margin-bottom: 12px;">Работа завершена!</h2>
-    <p style="font-size: 18px; margin-bottom: 8px;">Ваш результат: <b id="finalScore">0</b> баллов</p>
-    <p style="font-size: 14px; color: #64748b;" id="sheetNotice">Результаты передаются учителю.</p>
+  <!-- ЭКРАН 3: РЕЗУЛЬТАТ -->
+  <div id="resultBox" class="card hidden" style="text-align: center;">
+    <h2 style="font-size: 20px; margin-bottom: 10px;">Тестирование завершено!</h2>
+    <p style="font-size: 16px; margin-bottom: 8px;">Набрано баллов: <b id="scoreValue">0</b></p>
+    <p id="sheetStatus" style="font-size: 13px; color: #64748b;">Результаты зафиксированы.</p>
   </div>
 
-  <!-- 4. ПАНЕЛЬ УЧИТЕЛЯ -->
-  <div id="teacherScreen" class="card hidden">
-    <h3 style="margin-bottom: 16px;">Панель управления (Google Таблица)</h3>
-    <label style="font-size: 12px; font-weight: 600;">Ссылка на веб-приложение Google Таблицы (Apps Script URL):</label>
-    <input type="text" id="sheetUrlInput" class="input-box" placeholder="https://script.google.com/macros/s/.../exec">
-    <button onclick="saveSheetUrl()" class="btn btn-green">Сохранить ссылку</button>
-    <button onclick="toggleTeacher()" class="btn btn-outline" style="margin-left: 8px;">Закрыть</button>
+  <!-- ПАНЕЛЬ УЧИТЕЛЯ -->
+  <div id="teacherBox" class="card hidden">
+    <h3 style="font-size: 16px; margin-bottom: 12px;">Настройка Google Таблицы</h3>
+    <label style="font-size: 12px; font-weight: bold;">URL веб-приложения (Google Apps Script):</label>
+    <input type="text" id="tableUrlField" placeholder="https://script.google.com/macros/s/.../exec" class="input-field">
+    <div style="display: flex; gap: 8px;">
+      <button onclick="saveTableConfig()" class="btn btn-green">Сохранить URL</button>
+      <button onclick="toggleTeacherView()" class="btn btn-outline">Закрыть</button>
+    </div>
   </div>
 
   <script>
-    const questions = [
+    const examQuestions = [
       {
         text: "Какой органоид клетки обеспечивает синтез АТФ в процессе клеточного дыхания?",
         options: ["Митохондрия", "Комплекс Гольджи", "Лизосома", "Рибосома"],
         correct: 0,
-        points: 1
+        score: 1
       },
       {
         text: "В какую фазу фотосинтеза выделяется свободный кислород?",
         options: ["Световая фаза", "Темновая фаза", "Синтез углеводов"],
         correct: 0,
-        points: 1
+        score: 1
       },
       {
         text: "Какой сосуд несет артериальную кровь от сердца ко всем органам?",
         options: ["Аорта", "Легочный ствол", "Верхняя полая вена"],
         correct: 0,
-        points: 1
+        score: 1
       }
     ];
 
-    let currentQ = 0;
-    let answers = {};
-    let violations = 0;
-    let timerSec = 25 * 60;
-    let timerId = null;
-    let student = {};
-    let stream = null;
+    let activeQ = 0;
+    let savedAnswers = {};
+    let outCount = 0;
+    let totalSeconds = 25 * 60;
+    let clock = null;
+    let currentStudent = {};
+    let camStream = null;
 
-    function startExam(e) {
-      e.preventDefault();
-      student.name = document.getElementById('stName').value.trim();
-      student.grade = document.getElementById('stGrade').value;
-      student.letter = document.getElementById('stLetter').value.trim().toUpperCase();
+    function beginExam(event) {
+      event.preventDefault();
+      currentStudent.name = document.getElementById('studentName').value.trim();
+      currentStudent.grade = document.getElementById('studentGrade').value;
+      currentStudent.letter = document.getElementById('studentLetter').value.trim().toUpperCase();
 
-      navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-        .then(s => {
-          stream = s;
-          document.getElementById('videoElement').srcObject = s;
-          initExam();
-        })
-        .catch(() => {
-          alert("Не удалось включить камеру! Разрешите доступ к камере в браузере.");
-        });
-    }
-
-    function initExam() {
-      document.getElementById('authScreen').classList.add('hidden');
-      document.getElementById('examScreen').classList.remove('hidden');
-      document.getElementById('cameraWidget').classList.remove('hidden');
-      document.getElementById('watermarkBox').classList.remove('hidden');
-      document.getElementById('watermarkText').innerText = `${student.name} | ${student.grade}${student.letter}`;
-      document.getElementById('examStudentName').innerText = `${student.name} (${student.grade} "${student.letter}")`;
-
-      renderQ();
-      startTimer();
-      bindAntiCheat();
-    }
-
-    function renderQ() {
-      const q = questions[currentQ];
-      document.getElementById('qNumber').innerText = `Вопрос ${currentQ + 1} из ${questions.length}`;
-      document.getElementById('qText').innerText = q.text;
-
-      const container = document.getElementById('optionsContainer');
-      container.innerHTML = '';
-
-      q.options.forEach((opt, idx) => {
-        const lbl = document.createElement('label');
-        lbl.style.padding = "10px";
-        lbl.style.border = "1px solid #cbd5e1";
-        lbl.style.borderRadius = "8px";
-        lbl.style.cursor = "pointer";
-        lbl.style.display = "flex";
-        lbl.style.alignItems = "center";
-        lbl.style.gap = "8px";
-
-        const radio = document.createElement('input');
-        radio.type = 'radio';
-        radio.name = 'q_opt';
-        radio.checked = answers[currentQ] === idx;
-        radio.onchange = () => { answers[currentQ] = idx; };
-
-        lbl.appendChild(radio);
-        lbl.appendChild(document.createTextNode(opt));
-        container.appendChild(lbl);
-      });
-
-      document.getElementById('btnPrev').disabled = currentQ === 0;
-      if (currentQ === questions.length - 1) {
-        document.getElementById('btnNext').classList.add('hidden');
-        document.getElementById('btnFinish').classList.remove('hidden');
+      // Запрос веб-камеры
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+          .then(stream => {
+            camStream = stream;
+            document.getElementById('webcamView').srcObject = stream;
+            document.getElementById('camBox').classList.remove('hidden');
+            loadExamView();
+          })
+          .catch(() => {
+            // Если камеры физически нет или отклонили, даем пройти без нее
+            loadExamView();
+          });
       } else {
-        document.getElementById('btnNext').classList.remove('hidden');
-        document.getElementById('btnFinish').classList.add('hidden');
+        loadExamView();
       }
     }
 
-    function prevQ() { if (currentQ > 0) { currentQ--; renderQ(); } }
-    function nextQ() { if (currentQ < questions.length - 1) { currentQ++; renderQ(); } }
+    function loadExamView() {
+      document.getElementById('authBox').classList.add('hidden');
+      document.getElementById('examBox').classList.remove('hidden');
+      document.getElementById('studentDisplay').innerText = `${currentStudent.name} (${currentStudent.grade} "${currentStudent.letter}")`;
 
-    function startTimer() {
-      timerId = setInterval(() => {
-        timerSec--;
-        const m = Math.floor(timerSec / 60).toString().padStart(2, '0');
-        const s = (timerSec % 60).toString().padStart(2, '0');
-        document.getElementById('timer').innerText = `${m}:${s}`;
-        if (timerSec <= 0) {
-          clearInterval(timerId);
-          finishExam();
+      renderQuestion();
+      startCountdown();
+
+      window.onblur = function() {
+        outCount++;
+        document.getElementById('counterDisplay').innerText = outCount;
+      };
+    }
+
+    function renderQuestion() {
+      const item = examQuestions[activeQ];
+      document.getElementById('questionNumber').innerText = `Вопрос ${activeQ + 1} из ${examQuestions.length}`;
+      document.getElementById('questionContent').innerText = item.text;
+
+      const list = document.getElementById('optionsList');
+      list.innerHTML = '';
+
+      item.options.forEach((optText, i) => {
+        const itemLabel = document.createElement('label');
+        itemLabel.className = 'option-item';
+
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'exam_radio';
+        radio.checked = savedAnswers[activeQ] === i;
+        radio.onchange = () => { savedAnswers[activeQ] = i; };
+
+        itemLabel.appendChild(radio);
+        itemLabel.appendChild(document.createTextNode(optText));
+        list.appendChild(itemLabel);
+      });
+
+      document.getElementById('btnBack').disabled = activeQ === 0;
+      if (activeQ === examQuestions.length - 1) {
+        document.getElementById('btnForward').classList.add('hidden');
+        document.getElementById('btnDone').classList.remove('hidden');
+      } else {
+        document.getElementById('btnForward').classList.remove('hidden');
+        document.getElementById('btnDone').classList.add('hidden');
+      }
+    }
+
+    function prevQuestion() {
+      if (activeQ > 0) { activeQ--; renderQuestion(); }
+    }
+
+    function nextQuestion() {
+      if (activeQ < examQuestions.length - 1) { activeQ++; renderQuestion(); }
+    }
+
+    function startCountdown() {
+      clock = setInterval(() => {
+        totalSeconds--;
+        const mins = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+        const secs = (totalSeconds % 60).toString().padStart(2, '0');
+        document.getElementById('timerDisplay').innerText = `${mins}:${secs}`;
+        if (totalSeconds <= 0) {
+          clearInterval(clock);
+          submitExam();
         }
       }, 1000);
     }
 
-    function bindAntiCheat() {
-      window.addEventListener('blur', () => {
-        violations++;
-        document.getElementById('violCount').innerText = violations;
-        alert("Предупреждение: уход с окна зафиксирован!");
-      });
-    }
+    function submitExam() {
+      clearInterval(clock);
+      window.onblur = null;
 
-    function finishExam() {
-      clearInterval(timerId);
-      if (stream) stream.getTracks().forEach(t => t.stop());
+      if (camStream) {
+        camStream.getTracks().forEach(track => track.stop());
+      }
+      document.getElementById('camBox').classList.add('hidden');
+      document.getElementById('examBox').classList.add('hidden');
+      document.getElementById('resultBox').classList.remove('hidden');
 
-      document.getElementById('examScreen').classList.add('hidden');
-      document.getElementById('cameraWidget').classList.add('hidden');
-      document.getElementById('watermarkBox').classList.add('hidden');
-      document.getElementById('resultScreen').classList.remove('hidden');
-
-      let score = 0;
-      questions.forEach((q, idx) => {
-        if (answers[idx] === q.correct) score += q.points;
+      let userScore = 0;
+      examQuestions.forEach((q, idx) => {
+        if (savedAnswers[idx] === q.correct) userScore += q.score;
       });
 
-      document.getElementById('finalScore').innerText = `${score} / ${questions.length}`;
+      document.getElementById('scoreValue').innerText = `${userScore} из ${examQuestions.length}`;
 
-      const sheetUrl = localStorage.getItem('bio_sheet_url');
-      if (sheetUrl) {
-        fetch(sheetUrl, {
+      const savedUrl = localStorage.getItem('bio_gsheet_url');
+      if (savedUrl) {
+        fetch(savedUrl, {
           method: "POST",
           mode: "no-cors",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             timestamp: new Date().toLocaleString('ru-RU'),
-            student_name: student.name,
-            student_class: `${student.grade} "${student.letter}"`,
+            student_name: currentStudent.name,
+            student_class: `${currentStudent.grade} "${currentStudent.letter}"`,
             exam_title: "СОР по биологии",
-            score: score,
-            max_score: questions.length,
-            percent: Math.round((score / questions.length) * 100) + '%',
-            violations_count: violations,
-            violations_log: `Нарушений фокуса: ${violations}`
+            score: userScore,
+            max_score: examQuestions.length,
+            percent: Math.round((userScore / examQuestions.length) * 100) + '%',
+            violations_count: outCount,
+            violations_log: `Уходов с окна: ${outCount}`
           })
         }).then(() => {
-          document.getElementById('sheetNotice').innerText = "Данные успешно отправлены в Google Таблицу!";
+          document.getElementById('sheetStatus').innerText = "Данные успешно отправлены в Google Таблицу!";
         });
       }
     }
 
-    function toggleTeacher() {
-      const scr = document.getElementById('teacherScreen');
-      scr.classList.toggle('hidden');
-      document.getElementById('sheetUrlInput').value = localStorage.getItem('bio_sheet_url') || '';
+    function toggleTeacherView() {
+      const box = document.getElementById('teacherBox');
+      box.classList.toggle('hidden');
+      document.getElementById('tableUrlField').value = localStorage.getItem('bio_gsheet_url') || '';
     }
 
-    function saveSheetUrl() {
-      localStorage.setItem('bio_sheet_url', document.getElementById('sheetUrlInput').value.trim());
-      alert("Ссылка на таблицу сохранена!");
-      toggleTeacher();
+    function saveTableConfig() {
+      localStorage.setItem('bio_gsheet_url', document.getElementById('tableUrlField').value.trim());
+      alert("URL сохранен!");
+      toggleTeacherView();
     }
   </script>
 </body>
