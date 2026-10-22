@@ -92,10 +92,18 @@
           <li><b>Запрещено:</b> сворачивать окно, переключаться на другие вкладки/программы (Alt+Tab).</li>
           <li><b>Запрещено:</b> делать скриншоты, копировать текст и пользоваться подсказками.</li>
           <li>Каждая попытка ухода с окна будет записана в итоговую <b>Google Таблицу учителя</b>.</li>
+          <li>Во время работы включена <b>камера</b>: учитель получает периодические снимки. Закрывать камеру нельзя.</li>
         </ul>
       </div>
 
       <form id="formStudentAuth" onsubmit="handleStartExam(event)" class="space-y-4">
+        <div id="camBlock" class="rounded-xl border border-slate-200 p-3 flex items-center gap-3">
+          <video id="camPreview" autoplay muted playsinline class="rounded-lg bg-slate-900 object-cover" style="width:96px;height:72px"></video>
+          <div class="flex-1 text-xs">
+            <div id="camStatus" class="text-slate-600 mb-1.5">Нужна камера. Нажмите кнопку и разрешите доступ.</div>
+            <button type="button" id="btnCam" onclick="enableCamera()" class="px-3 py-1.5 rounded-lg bg-slate-800 text-white font-semibold">Включить камеру</button>
+          </div>
+        </div>
         <div>
           <label class="block text-xs font-semibold text-slate-700 mb-1">Фамилия и Имя ученика:</label>
           <input type="text" id="inputStudentName" required placeholder="Например: Иванов Иван" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm">
@@ -119,7 +127,7 @@
         </div>
 
         <div class="pt-2">
-          <button type="submit" class="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl shadow-lg shadow-emerald-200 transition flex items-center justify-center gap-2">
+          <button type="submit" id="btnStart" class="disabled:opacity-40 disabled:pointer-events-none w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl shadow-lg shadow-emerald-200 transition flex items-center justify-center gap-2">
             <span>Начать выполнение работы</span>
             <i class="fa-solid fa-arrow-right text-sm"></i>
           </button>
@@ -267,6 +275,11 @@
             </div>
           </div>
 
+          <div class="flex flex-wrap items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+            <label class="flex items-center gap-2 font-semibold text-slate-700"><input type="checkbox" id="configProctorCamera" checked> Видеопрокторинг (камера обязательна)</label>
+            <label class="font-semibold text-slate-700">Снимок каждые <input type="number" id="configSnapshotSec" min="10" max="120" value="30" class="w-16 px-2 py-1 border border-slate-300 rounded"> сек.</label>
+          </div>
+
           <!-- Список вопросов -->
           <div class="flex items-center justify-between">
             <h3 class="font-bold text-slate-900 text-sm">Список заданий (<span id="totalQuestionsCount">0</span>):</h3>
@@ -295,7 +308,7 @@
             <ol class="list-decimal list-inside space-y-2">
               <li>Создайте новую Google Таблицу и добавьте в первую строчку шапку: <b>Дата | ФИО | Класс | СОР | Балл | Макс | % | Нарушений | Лог</b></li>
               <li>В меню таблицы нажмите <b>Расширения (Extensions) ➔ Apps Script</b>.</li>
-              <li>Вставьте код скрипта (приведен ниже) и нажмите <b>Развернуть (Deploy) ➔ Новое развертывание (New deployment)</b>.</li>
+              <li>Вставьте код скрипта (приведен ниже; он же сохраняет снимки с камеры в папку Google Drive «СОР_прокторинг» — при развёртывании разрешите доступ к Drive) и нажмите <b>Развернуть (Deploy) ➔ Новое развертывание (New deployment)</b>.</li>
               <li>Тип выберите: <b>Веб-приложение (Web app)</b>, доступ: <b>Все (Anyone)</b>.</li>
               <li>Скопируйте полученную ссылку веб-приложения и вставьте в поле ниже.</li>
             </ol>
@@ -310,27 +323,26 @@
           <!-- Готовый код скрипта для копирования -->
           <div>
             <label class="block text-xs font-semibold text-slate-700 mb-1">Код для Google Apps Script (скопируйте в Apps Script):</label>
-            <textarea readonly rows="9" class="w-full p-3 font-mono text-xs bg-slate-900 text-emerald-400 rounded-xl select-all">function doPost(e) {
+            <textarea readonly rows="14" class="w-full p-3 font-mono text-xs bg-slate-900 text-emerald-400 rounded-xl select-all">function doPost(e) {
   var lock = LockService.getScriptLock();
   lock.tryLock(10000);
   try {
-    var doc = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = doc.getActiveSheet();
     var data = JSON.parse(e.postData.contents);
+    if (data.type === 'snapshot') {
+      var it = DriveApp.getFoldersByName('СОР_прокторинг');
+      var folder = it.hasNext() ? it.next() : DriveApp.createFolder('СОР_прокторинг');
+      folder.createFile(Utilities.newBlob(Utilities.base64Decode(data.image), 'image/jpeg', data.file_name));
+      return ContentService.createTextOutput('ok');
+    }
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
     sheet.appendRow([
-      data.timestamp,
-      data.student_name,
-      data.student_class,
-      data.exam_title,
-      data.score,
-      data.max_score,
-      data.percent + '%',
-      data.violations_count,
-      data.violations_log
+      data.timestamp, data.student_name, data.student_class, data.exam_title,
+      data.score, data.max_score, data.percent + '%',
+      data.violations_count, data.violations_log, data.snapshots_count
     ]);
     return ContentService.createTextOutput(JSON.stringify({result: 'success'})).setMimeType(ContentService.MimeType.JSON);
   } catch(err) {
-    return ContentService.createTextOutput(JSON.stringify({result: 'error', error: err})).setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({result: 'error', error: String(err)})).setMimeType(ContentService.MimeType.JSON);
   } finally {
     lock.releaseLock();
   }
@@ -347,7 +359,7 @@
         <!-- ВКЛАДКА 3: Ссылка для учеников -->
         <div id="tabContentLink" class="hidden space-y-4">
           <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Прямая ссылка для отправки ученикам (в WhatsApp/Kundelik):</label>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Прямая ссылка для учеников (WhatsApp/Kundelik). Содержит все задания — после правок копируйте заново:</label>
             <div class="flex gap-2">
               <input type="text" id="studentDirectLink" readonly class="flex-1 px-3 py-2 bg-white rounded-lg border border-slate-300 text-xs select-all text-slate-700 font-mono">
               <button onclick="copyStudentLink()" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5">
@@ -362,6 +374,9 @@
     </section>
 
   </main>
+
+  <video id="camLive" autoplay muted playsinline class="hidden fixed bottom-3 right-3 z-40 rounded-xl border-2 border-emerald-500 shadow-lg object-cover bg-slate-900" style="width:128px;height:96px"></video>
+  <canvas id="snapCanvas" width="320" height="240" class="hidden"></canvas>
 
   <!-- МОДАЛЬНОЕ ОКНО ПАРОЛЯ УЧИТЕЛЯ -->
   <div id="modalTeacherAuth" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
@@ -413,6 +428,8 @@
       durationMinutes: 25,
       maxViolations: 3,
       googleSheetUrl: "",
+      proctorCamera: true,
+      snapshotSec: 30,
       teacherPassword: "bio2026",
       questions: [
         {
@@ -454,7 +471,23 @@
     };
 
     // Состояние приложения
-    let config = JSON.parse(localStorage.getItem('bio_exam_config')) || DEFAULT_CONFIG;
+    let isSharedMode = false;
+    function loadConfig() {
+      try {
+        const m = location.hash.match(/^#c=(.+)$/);
+        if (m) {
+          const c = JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g, '+').replace(/_/g, '/')))));
+          isSharedMode = true;
+          return { ...DEFAULT_CONFIG, ...c, teacherPassword: DEFAULT_CONFIG.teacherPassword };
+        }
+      } catch (e) { console.warn(e); }
+      try {
+        const saved = JSON.parse(localStorage.getItem('bio_exam_config'));
+        if (saved) return { ...DEFAULT_CONFIG, ...saved };
+      } catch (e) {}
+      return DEFAULT_CONFIG;
+    }
+    let config = loadConfig();
     let student = { name: '', grade: '', letter: '' };
     let currentQuestionIdx = 0;
     let studentAnswers = {};
@@ -489,7 +522,7 @@
 
       // Проверяем URL: если в параметрах есть ?mode=teacher
       const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get('mode') === 'teacher') {
+      if (urlParams.get('mode') === 'teacher' && !isSharedMode) {
         openTeacherDashboard();
       } else {
         showStudentAuth();
@@ -504,11 +537,14 @@
       document.getElementById('screenExam').classList.add('hidden');
       document.getElementById('screenResults').classList.add('hidden');
       document.getElementById('screenTeacherDashboard').classList.add('hidden');
-      document.getElementById('btnSwitchToTeacher').classList.remove('hidden');
+      document.getElementById('btnSwitchToTeacher').classList.toggle('hidden', isSharedMode);
       document.getElementById('btnExitTeacher').classList.add('hidden');
       document.getElementById('badgeMode').innerText = "Система честного оценивания";
       
       document.getElementById('authExamTitle').innerText = config.examTitle;
+      const camOn = config.proctorCamera !== false;
+      document.getElementById('camBlock').classList.toggle('hidden', !camOn);
+      document.getElementById('btnStart').disabled = camOn && !camStream;
     }
 
     function openTeacherDashboard() {
@@ -525,6 +561,8 @@
       document.getElementById('configExamDuration').value = config.durationMinutes;
       document.getElementById('configMaxViolations').value = config.maxViolations;
       document.getElementById('configGoogleSheetUrl').value = config.googleSheetUrl || "";
+      document.getElementById('configProctorCamera').checked = config.proctorCamera !== false;
+      document.getElementById('configSnapshotSec').value = config.snapshotSec || 30;
 
       renderTeacherQuestions();
     }
@@ -559,6 +597,7 @@
 
     // ВКЛАДКИ УЧИТЕЛЯ
     function switchTeacherTab(tab) {
+      if (tab === 'tabLink') refreshStudentLink();
       ['tabTasks', 'tabSheets', 'tabLink'].forEach(t => {
         document.getElementById('tabBtn' + t.slice(3)).classList.remove('text-emerald-600', 'border-emerald-600', 'font-bold');
         document.getElementById('tabBtn' + t.slice(3)).classList.add('text-slate-500', 'border-transparent', 'font-semibold');
@@ -595,7 +634,7 @@
 
           <div>
             <label class="block text-[11px] font-semibold text-slate-600 mb-1">Формулировка вопроса:</label>
-            <textarea rows="2" onchange="updateQText(${qIndex}, this.value)" class="w-full text-xs p-2 rounded-lg border border-slate-300 bg-white">${q.text}</textarea>
+            <textarea rows="2" onchange="updateQText(${qIndex}, this.value)" class="w-full text-xs p-2 rounded-lg border border-slate-300 bg-white">${esc(q.text)}</textarea>
           </div>
 
           <div class="text-xs text-slate-600">
@@ -604,7 +643,7 @@
 
           <div>
             <label class="block text-[11px] font-semibold text-slate-600 mb-1">Дескриптор (критерий оценивания):</label>
-            <input type="text" value="${q.descriptor || ''}" onchange="updateQDescriptor(${qIndex}, this.value)" class="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white">
+            <input type="text" value="${esc(q.descriptor || '')}" onchange="updateQDescriptor(${qIndex}, this.value)" class="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white">
           </div>
         `;
         container.appendChild(item);
@@ -638,11 +677,24 @@
       renderTeacherQuestions();
     }
 
-    function saveExamConfiguration() {
+    function applyFields() {
       config.examTitle = document.getElementById('configExamTitle').value;
       config.durationMinutes = parseInt(document.getElementById('configExamDuration').value) || 25;
       config.maxViolations = parseInt(document.getElementById('configMaxViolations').value) || 3;
       config.googleSheetUrl = document.getElementById('configGoogleSheetUrl').value.trim();
+      config.proctorCamera = document.getElementById('configProctorCamera').checked;
+      config.snapshotSec = Math.min(120, Math.max(10, parseInt(document.getElementById('configSnapshotSec').value) || 30));
+    }
+
+    function refreshStudentLink() {
+      applyFields();
+      const { teacherPassword, ...pub } = config;
+      const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(pub)))).replace(/\+/g, '-').replace(/\//g, '_');
+      document.getElementById('studentDirectLink').value = location.href.split('#')[0].split('?')[0] + '#c=' + b64;
+    }
+
+    function saveExamConfiguration() {
+      applyFields();
 
       localStorage.setItem('bio_exam_config', JSON.stringify(config));
       alert("✅ Настройки и задания успешно сохранены!");
@@ -663,6 +715,8 @@
       student.letter = document.getElementById('inputStudentLetter').value.trim().toUpperCase();
 
       if (!student.name) return;
+      graceUntil = Date.now() + 2500;
+      if (config.proctorCamera !== false && !camStream) { alert('Сначала включите камеру.'); return; }
 
       // Переход в полноэкранный режим
       const el = document.documentElement;
@@ -685,6 +739,7 @@
       document.getElementById('liveStudentClass').innerText = `${student.grade} "${student.letter}" класс`;
 
       isExamActive = true;
+      startProctoring();
       violations = [];
       studentAnswers = {};
       currentQuestionIdx = 0;
@@ -750,7 +805,7 @@
           div.className = `flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition ${isSelected ? 'border-emerald-600 bg-emerald-50/60 font-semibold text-emerald-950' : 'border-slate-200 hover:bg-slate-50'}`;
           div.innerHTML = `
             <input type="radio" name="answer_${q.id}" ${isSelected ? 'checked' : ''} onchange="selectSingleOption(${q.id}, ${idx})" class="w-4 h-4 text-emerald-600 focus:ring-emerald-500">
-            <span class="text-sm">${opt}</span>
+            <span class="text-sm">${esc(opt)}</span>
           `;
           container.appendChild(div);
         });
@@ -762,7 +817,7 @@
           div.className = `flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition ${isSelected ? 'border-emerald-600 bg-emerald-50/60 font-semibold text-emerald-950' : 'border-slate-200 hover:bg-slate-50'}`;
           div.innerHTML = `
             <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleMultipleOption(${q.id}, ${idx})" class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500">
-            <span class="text-sm">${opt}</span>
+            <span class="text-sm">${esc(opt)}</span>
           `;
           container.appendChild(div);
         });
@@ -770,7 +825,7 @@
         const curText = studentAnswers[q.id] || '';
         const div = document.createElement('div');
         div.innerHTML = `
-          <input type="text" placeholder="Введите ваш ответ..." value="${curText}" oninput="handleTextInput(${q.id}, this.value)" class="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+          <input type="text" placeholder="Введите ваш ответ..." value="${esc(curText)}" oninput="handleTextInput(${q.id}, this.value)" class="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
         `;
         container.appendChild(div);
       }
@@ -834,7 +889,10 @@
     }
 
     function confirmFinishExam() {
-      if (confirm("Вы уверены, что хотите завершить работу и отправить результат учителю?")) {
+      graceUntil = Date.now() + 60000;
+      const ok = confirm("Вы уверены, что хотите завершить работу и отправить результат учителю?");
+      graceUntil = Date.now() + 1500;
+      if (ok) {
         finishExam(false);
       }
     }
@@ -843,6 +901,7 @@
     function finishExam(isTimeout = false) {
       isExamActive = false;
       clearInterval(timerInterval);
+      stopProctoring();
       document.getElementById('watermarkLayer').classList.add('hidden');
 
       // Подсчет баллов
@@ -908,6 +967,7 @@
         max_score: maxScore,
         percent: percent,
         violations_count: violations.length,
+        snapshots_count: snapshotsSent,
         violations_log: violations.map(v => `[${v.time}] ${v.msg}`).join("; ") || "Нет нарушений"
       };
 
@@ -915,7 +975,7 @@
       fetch(config.googleSheetUrl, {
         method: "POST",
         mode: "no-cors",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "text/plain" },
         body: JSON.stringify(payload)
       })
       .then(() => {
@@ -927,6 +987,71 @@
         statusIcon.className = "fa-solid fa-circle-xmark text-rose-600";
         statusText.innerText = "Ошибка отправки в таблицу. Сообщите учителю.";
       });
+    }
+
+    // ВИДЕОПРОКТОРИНГ
+    let camStream = null, snapTimer = null, snapshotsSent = 0, graceUntil = 0, darkStreak = 0;
+
+    function esc(v) {
+      return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    async function enableCamera() {
+      const st = document.getElementById('camStatus');
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        st.textContent = 'Камера недоступна. Откройте ссылку в Chrome/Safari (адрес должен начинаться с https://).';
+        return;
+      }
+      graceUntil = Date.now() + 60000; // окно запроса разрешения не считается нарушением
+      try {
+        camStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' }, audio: false });
+        document.getElementById('camPreview').srcObject = camStream;
+        camStream.getVideoTracks()[0].addEventListener('ended', () => registerViolation('Камера отключена'));
+        st.textContent = '✅ Камера работает. Убедитесь, что видно ваше лицо.';
+        document.getElementById('btnStart').disabled = false;
+      } catch (e) {
+        st.textContent = '❌ Нет доступа к камере. Разрешите её (значок замка у адресной строки) и нажмите снова.';
+      }
+      graceUntil = Date.now() + 1500;
+    }
+
+    function takeSnapshot(label) {
+      const v = document.getElementById('camLive');
+      if (!camStream || !v.videoWidth) return;
+      const c = document.getElementById('snapCanvas');
+      const ctx = c.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(v, 0, 0, c.width, c.height);
+
+      if (label === 'плановый') { // камера закрыта / тёмный кадр два раза подряд
+        const d = ctx.getImageData(0, 0, c.width, c.height).data;
+        let sum = 0, cnt = 0;
+        for (let i = 0; i < d.length; i += 40) { sum += d[i] * 0.3 + d[i + 1] * 0.6 + d[i + 2] * 0.1; cnt++; }
+        darkStreak = (sum / cnt < 18) ? darkStreak + 1 : 0;
+        if (darkStreak === 2) registerViolation('Камера закрыта или кадр слишком тёмный');
+      }
+      if (!config.googleSheetUrl) return;
+      const safe = label.replace(/[\\/:*?"<>|]/g, '').slice(0, 25);
+      const name = `${new Date().toISOString().slice(0, 10)}_${student.grade}${student.letter}_${student.name}_${new Date().toLocaleTimeString('ru-RU').replace(/:/g, '-')}_${safe}.jpg`;
+      fetch(config.googleSheetUrl, {
+        method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ type: 'snapshot', file_name: name, image: c.toDataURL('image/jpeg', 0.55).split(',')[1] })
+      }).then(() => snapshotsSent++).catch(() => {});
+    }
+
+    function startProctoring() {
+      snapshotsSent = 0; darkStreak = 0;
+      if (!camStream) return;
+      const v = document.getElementById('camLive');
+      v.srcObject = camStream;
+      v.classList.remove('hidden');
+      setTimeout(() => takeSnapshot('старт'), 1500);
+      snapTimer = setInterval(() => takeSnapshot('плановый'), (config.snapshotSec || 30) * 1000);
+    }
+
+    function stopProctoring() {
+      clearInterval(snapTimer);
+      document.getElementById('camLive').classList.add('hidden');
+      if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
     }
 
     // АНТИЧИТ И ПРОКТОРИНГ
@@ -968,6 +1093,10 @@
     }
 
     function registerViolation(reason) {
+      if (!isExamActive || Date.now() < graceUntil) return;
+      if (!document.getElementById('modalViolation').classList.contains('hidden')) return;
+      graceUntil = Date.now() + 1500;
+      takeSnapshot('нарушение');
       playBeep(450, 0.4);
       const timeStr = new Date().toLocaleTimeString('ru-RU');
       violations.push({ time: timeStr, msg: reason });
@@ -978,6 +1107,7 @@
       const left = config.maxViolations - count;
 
       if (left <= 0) {
+        isExamActive = false;
         alert("⚠️ Лимит нарушений превышен! Тестирование аннулируется и принудительно завершается.");
         finishExam(true);
       } else {
@@ -988,6 +1118,7 @@
     }
 
     function dismissViolationModal() {
+      graceUntil = Date.now() + 1000;
       document.getElementById('modalViolation').classList.add('hidden');
       document.getElementById('screenExam').classList.remove('violation-blur');
     }
