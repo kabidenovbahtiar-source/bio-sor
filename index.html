@@ -1,0 +1,1563 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Онлайн СОР / СОЧ по биологии | Платформа безопасного оценивания</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        /* Разрешаем выделение только внутри полей ввода редактора */
+        input, textarea, select {
+            -webkit-user-select: text !important;
+            -moz-user-select: text !important;
+            -ms-user-select: text !important;
+            user-select: text !important;
+        }
+
+        /* Защита от печати */
+        @media print {
+            body {
+                display: none !important;
+            }
+        }
+
+        /* Динамический водяной знак против фотосъемки экрана */
+        .watermark-layer {
+            position: fixed;
+            top: -20vh;
+            left: -20vw;
+            width: 140vw;
+            height: 140vh;
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0.12;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-gap: 60px;
+            overflow: hidden;
+            font-size: 13px;
+            font-weight: 700;
+            color: #047857;
+            transform: rotate(-24deg);
+        }
+
+        .watermark-item {
+            white-space: nowrap;
+            text-align: center;
+        }
+
+        /* Размытие при нарушении фокуса */
+        .blurred-screen {
+            filter: blur(28px) grayscale(90%);
+            pointer-events: none !important;
+            transition: filter 0.15s ease;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.25s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen relative flex flex-col justify-between" oncontextmenu="return false;" ondragstart="return false;">
+
+    <!-- Сетка Водяных Знаков (для режима ученика) -->
+    <div id="watermarkLayer" class="watermark-layer hidden"></div>
+
+    <!-- Модальное окно предупреждения прокторинга при нарушении -->
+    <div id="violationModal" class="fixed inset-0 z-[10000] bg-emerald-950/85 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 text-center shadow-2xl border-2 border-red-500">
+            <div class="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <svg class="w-9 h-9" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+            </div>
+            <h3 class="text-2xl font-bold text-slate-900 mb-2">Зафиксировано нарушение!</h3>
+            <p id="violationModalText" class="text-slate-600 mb-4 text-sm leading-relaxed">
+                Вы покинули окно тестирования или вышли из полноэкранного режима. Данное событие занесено в протокол учителя.
+            </p>
+            <div class="bg-red-50 text-red-700 px-4 py-2.5 rounded-xl font-semibold mb-6 text-sm border border-red-200">
+                Осталось предупреждений до аннулирования: <span id="modalRemainingAttempts" class="font-extrabold text-base">3</span>
+            </div>
+            <button id="resumeTestBtn" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 px-6 rounded-xl transition duration-150 shadow-lg shadow-red-600/30">
+                Вернуться в полный экран и продолжить
+            </button>
+        </div>
+    </div>
+
+    <!-- Модальное окно JSON импорта/экспорта -->
+    <div id="jsonModal" class="fixed inset-0 z-[9990] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
+                <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2">
+                    <span class="text-emerald-600 font-mono">{ }</span> Импорт / Экспорт заданий (JSON)
+                </h3>
+                <button id="closeJsonModalBtn" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <p class="text-xs text-slate-500 mb-3">
+                Вы можете скопировать структуру заданий для резервного сохранения или вставить готовый JSON-массив вопросов по биологии:
+            </p>
+            <textarea id="jsonArea" class="w-full h-64 p-3 rounded-xl border border-slate-300 font-mono text-xs focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"></textarea>
+            <div class="flex justify-between items-center mt-4 gap-3">
+                <button id="copyJsonBtn" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition">
+                    Скопировать в буфер
+                </button>
+                <div class="flex gap-2">
+                    <button id="cancelJsonBtn" class="px-4 py-2 border border-slate-300 hover:bg-slate-50 text-slate-600 text-xs font-semibold rounded-xl">
+                        Отмена
+                    </button>
+                    <button id="applyJsonBtn" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-sm transition">
+                        Применить JSON
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Верхняя общая панель навигации (переключатель режимов) -->
+    <header class="bg-white border-b border-slate-200 py-3 px-4 sm:px-8 flex justify-between items-center z-30 shadow-sm">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-bold text-lg shadow-md shadow-emerald-500/20">
+                🌿
+            </div>
+            <div>
+                <h1 class="font-extrabold text-slate-900 text-sm sm:text-base leading-tight tracking-tight">Биология СОР / СОЧ</h1>
+                <p class="text-[11px] text-emerald-700 font-semibold tracking-wide uppercase">Система честного оценивания</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <button id="navTeacherBtn" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold transition bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+                <span>Конструктор учителя</span>
+            </button>
+            <button id="navStudentBtn" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold transition bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                <span>Вход ученика</span>
+            </button>
+        </div>
+    </header>
+
+    <div id="mainWrapper" class="flex-grow flex flex-col justify-between">
+
+        <!-- ================= РЕЖИМ 1: КОНСТРУКТОР УЧИТЕЛЯ ================= -->
+        <main id="teacherView" class="max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6 fade-in flex-grow">
+            <!-- Верхняя плашка управления тестом -->
+            <div class="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-sm space-y-5">
+                <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                    <div>
+                        <span class="inline-block px-2.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-full text-xs font-bold uppercase tracking-wider mb-1">
+                            Панель управления оцениванием
+                        </span>
+                        <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900">Настройки СОР / СОЧ по биологии</h2>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="openJsonBtn" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition">
+                            <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                            JSON Импорт / Экспорт
+                        </button>
+                        <button id="resetToDefaultBtn" class="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-semibold rounded-xl transition">
+                            Сбросить на базовую базу РК
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Метаданные теста -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Название оценивания</label>
+                        <input type="text" id="cfgTitle" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Параллель (класс)</label>
+                        <select id="cfgGrade" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white">
+                            <option value="7">7 класс</option>
+                            <option value="8">8 класс</option>
+                            <option value="9" selected>9 класс</option>
+                            <option value="10">10 класс</option>
+                            <option value="11">11 класс</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Лимит времени (минуты)</label>
+                        <input type="number" id="cfgTimeLimit" min="5" max="90" value="25" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Лимит нарушений</label>
+                        <input type="number" id="cfgMaxViolations" min="1" max="5" value="3" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
+                    <div class="text-xs text-slate-500 flex items-center gap-2">
+                        <span>Всего заданий: <b id="statQuestionCount" class="text-slate-800">5</b></span>
+                        <span>•</span>
+                        <span>Максимальный балл: <b id="statTotalScore" class="text-emerald-700">9</b></span>
+                    </div>
+                    <button id="launchExamForStudentsBtn" class="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md shadow-emerald-600/20 transition flex items-center gap-2">
+                        <span>Перейти к тестированию ученика</span>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Список добавленных вопросов -->
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-extrabold text-slate-800 text-lg flex items-center gap-2">
+                        <span>Список заданий и дескрипторов</span>
+                    </h3>
+                    <button id="addNewQuestionBtn" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition flex items-center gap-1.5 shadow-sm">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        Добавить задание
+                    </button>
+                </div>
+
+                <!-- Контейнер карточек вопросов -->
+                <div id="questionsEditorList" class="space-y-4"></div>
+            </div>
+        </main>
+
+        <!-- ================= РЕЖИМ 2: АВТОРИЗАЦИЯ УЧЕНИКА ================= -->
+        <main id="studentAuthView" class="hidden flex-grow flex items-center justify-center p-4 py-8 fade-in">
+            <div class="max-w-lg w-full bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
+                <div class="bg-gradient-to-br from-emerald-700 via-teal-700 to-emerald-800 p-6 sm:p-8 text-white text-center">
+                    <span class="inline-block px-3 py-1 bg-white/20 text-white rounded-full text-[11px] font-bold tracking-wider uppercase mb-2">
+                        СОР / СОЧ • Академическая честность
+                    </span>
+                    <h2 id="authExamTitleDisplay" class="text-2xl sm:text-3xl font-extrabold tracking-tight">СОР №1 по Биологии</h2>
+                    <p class="text-emerald-100 text-xs sm:text-sm mt-1">Вход учащегося в защищенную экзаменационную сессию</p>
+                </div>
+
+                <form id="studentAuthForm" class="p-6 sm:p-8 space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1" for="studentFullName">
+                            Фамилия и Имя учащегося *
+                        </label>
+                        <input type="text" id="studentFullName" required placeholder="Например: Касымова Айдана"
+                            class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm font-medium">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1" for="studentClassNum">
+                                Класс *
+                            </label>
+                            <input type="number" id="studentClassNum" required min="7" max="11" value="9"
+                                class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1" for="studentClassLetter">
+                                Литера класса *
+                            </label>
+                            <select id="studentClassLetter" required class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm bg-white">
+                                <option value="А">Класс "А"</option>
+                                <option value="Б" selected>Класс "Б"</option>
+                                <option value="В">Класс "В"</option>
+                                <option value="Г">Класс "Г"</option>
+                                <option value="Д">Класс "Д"</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Памятка античита -->
+                    <div class="p-4 bg-emerald-50/70 rounded-2xl border border-emerald-200 text-xs text-emerald-950 space-y-2">
+                        <div class="font-bold flex items-center gap-1.5 text-emerald-900">
+                            <svg class="w-4 h-4 text-emerald-700" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                            Правила прохождения тестирования:
+                        </div>
+                        <ul class="list-disc pl-4 space-y-1 text-slate-700 leading-relaxed">
+                            <li>Обязательный вход в <b>полноэкранный режим</b>.</li>
+                            <li>Копирование текста, скриншоты (<code class="bg-emerald-100/60 px-1 rounded font-mono">PrtScn</code>) и контекстное меню <b>заблокированы</b>.</li>
+                            <li>Экран покрыт динамическим водяным знаком с вашим именем от фотографирования.</li>
+                            <li>Переключение вкладки или свертывание окна считается <b>нарушением</b>.</li>
+                        </ul>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" id="agreeConduct" required class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500">
+                        <label for="agreeConduct" class="text-xs text-slate-600">
+                            Подтверждаю самостоятельное выполнение работы без помощи сторонних ресурсов
+                        </label>
+                    </div>
+
+                    <button type="submit" class="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold py-3.5 px-6 rounded-xl shadow-lg shadow-emerald-600/25 transition duration-150 flex items-center justify-center gap-2 text-sm sm:text-base">
+                        <span>Войти в полный экран и начать</span>
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                    </button>
+                </form>
+            </div>
+        </main>
+
+        <!-- ================= РЕЖИМ 3: ПРОХОЖДЕНИЕ ТЕСТИРОВАНИЯ ================= -->
+        <div id="studentExamView" class="hidden flex-grow flex flex-col">
+            <!-- Верхняя строка состояния прокторинга -->
+            <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm px-4 sm:px-8 py-3 flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></div>
+                    <div>
+                        <h3 id="liveExamTitle" class="font-extrabold text-slate-900 text-xs sm:text-sm">СОР по биологии</h3>
+                        <p id="liveStudentBadge" class="text-[11px] text-slate-500">Касымова Айдана • 9 "Б"</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <!-- Нарушения -->
+                    <div class="flex items-center gap-1.5 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-semibold">
+                        <span class="text-slate-600">Нарушения:</span>
+                        <span id="liveViolationBadge" class="bg-emerald-600 text-white px-2 py-0.5 rounded-md font-bold">
+                            0 / 3
+                        </span>
+                    </div>
+
+                    <!-- Таймер -->
+                    <div class="flex items-center gap-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-mono font-bold">
+                        <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span id="countdownTimer">25:00</span>
+                    </div>
+
+                    <button id="quickSubmitBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-xl text-xs font-semibold transition">
+                        Сдать СОР/СОЧ
+                    </button>
+                </div>
+            </header>
+
+            <main class="flex-grow max-w-4xl w-full mx-auto p-4 sm:p-6 space-y-6">
+                <!-- Статусная плашка -->
+                <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between text-xs text-emerald-950">
+                    <span class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-emerald-600"></span>
+                        Сессия под контролем античита. Нажатие Alt+Tab, Esc или PrtScn фиксируется.
+                    </span>
+                    <span id="screenLiveStatus" class="font-bold text-emerald-700">● Полный экран активен</span>
+                </div>
+
+                <!-- Быстрая навигация по номерам вопросов -->
+                <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex items-center gap-2 overflow-x-auto" id="questionNavPills">
+                    <!-- Будет заполнено скриптом -->
+                </div>
+
+                <!-- Контейнер текущих вопросов -->
+                <form id="studentExamForm" class="space-y-6 pb-12">
+                    <div id="studentQuestionsList" class="space-y-6"></div>
+
+                    <div class="pt-4 flex justify-end">
+                        <button type="button" id="finalExamSubmitBtn" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold py-3.5 px-8 rounded-xl shadow-lg shadow-emerald-600/20 transition">
+                            Завершить и отправить на проверку
+                        </button>
+                    </div>
+                </form>
+            </main>
+        </div>
+
+        <!-- ================= РЕЖИМ 4: ФИНАЛЬНЫЙ ОТЧЕТ И ПРОТОКОЛ ================= -->
+        <main id="resultView" class="hidden flex-grow flex items-center justify-center p-4 py-8 fade-in">
+            <div class="max-w-3xl w-full bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
+                <div id="resultHero" class="p-6 sm:p-8 text-white text-center bg-emerald-700">
+                    <div id="resultIconBadge" class="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <svg class="w-9 h-9 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    </div>
+                    <h2 class="text-2xl sm:text-3xl font-extrabold" id="reportHeadline">СОР по биологии сдан!</h2>
+                    <p class="text-white/80 text-xs sm:text-sm mt-1" id="reportSubheadline">Результаты автоматически рассчитаны и зафиксированы</p>
+                </div>
+
+                <div class="p-6 sm:p-8 space-y-6">
+                    <!-- Сводные метрики -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                        <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                            <span class="block text-xs text-slate-500 mb-1">Итоговый балл</span>
+                            <span id="repScore" class="text-2xl font-extrabold text-emerald-700">0 / 0</span>
+                        </div>
+                        <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                            <span class="block text-xs text-slate-500 mb-1">Процент</span>
+                            <span id="repPercent" class="text-2xl font-extrabold text-slate-800">0%</span>
+                        </div>
+                        <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                            <span class="block text-xs text-slate-500 mb-1">Нарушений окна</span>
+                            <span id="repViolations" class="text-2xl font-extrabold text-red-600">0</span>
+                        </div>
+                        <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                            <span class="block text-xs text-slate-500 mb-1">Затрачено времени</span>
+                            <span id="repTimeSpent" class="text-2xl font-extrabold text-slate-800">--:--</span>
+                        </div>
+                    </div>
+
+                    <!-- Паспорт сдачи -->
+                    <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200 text-xs sm:text-sm space-y-1.5">
+                        <div class="flex justify-between">
+                            <span class="text-slate-500">Учащийся:</span>
+                            <span id="repStudent" class="font-bold text-slate-800"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-500">Класс:</span>
+                            <span id="repGrade" class="font-bold text-slate-800"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-500">Тема СОР/СОЧ:</span>
+                            <span id="repExamName" class="font-bold text-slate-800"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-500">Дата и время сдачи:</span>
+                            <span id="repTimestamp" class="font-medium text-slate-700"></span>
+                        </div>
+                    </div>
+
+                    <!-- Детализация по дескрипторам заданий -->
+                    <div>
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-600 mb-2.5">
+                            Детализация баллов по заданиям:
+                        </h4>
+                        <div id="breakdownContainer" class="space-y-2 text-xs"></div>
+                    </div>
+
+                    <!-- Протокол античита -->
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-600">
+                                Протокол событий прокторинга (Log):
+                            </h4>
+                            <span id="repLogCount" class="text-[11px] bg-slate-100 px-2 py-0.5 rounded text-slate-600 font-mono">0 событий</span>
+                        </div>
+                        <div id="repViolationLogs" class="bg-slate-900 text-emerald-400 p-4 rounded-2xl text-xs font-mono max-h-44 overflow-y-auto space-y-1.5 border border-slate-800">
+                            <div class="text-slate-500">Нет записей о нарушениях.</div>
+                        </div>
+                    </div>
+
+                    <!-- Кнопки действий -->
+                    <div class="flex flex-wrap gap-3 pt-2">
+                        <button id="copySummaryBtn" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-4 rounded-xl transition text-xs flex items-center justify-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+                            <span>Скопировать отчет для Кунделик / Эл.журнала</span>
+                        </button>
+                        <button id="downloadReportBtn" class="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition">
+                            Скачать протокол .txt
+                        </button>
+                        <button id="backToHomeBtn" class="px-4 py-3 border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl text-xs transition">
+                            В начало
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+    </div>
+
+    <!-- Подвал -->
+    <footer class="py-3 px-4 text-center text-[11px] text-slate-400 border-t border-slate-200 bg-white">
+        Онлайн СОР/СОЧ по биологии • Античит-система защиты окон и авторских заданий
+    </footer>
+
+    <!-- Основной скрипт приложения -->
+    <script>
+        // ================= БАЗА ВОПРОСОВ ПО БИОЛОГИИ ПО ТИПОВОЙ ПРОГРАММЕ РК =================
+        const DEFAULT_BIOLOGY_QUESTIONS = [
+            {
+                id: "bio-q1",
+                type: "single_choice",
+                text: "Какой клеточный органоид называют «энергетической станцией клетки», где синтезируется основная часть АТФ в процессе клеточного дыхания?",
+                descriptor: "Знает строение и функции основных органелл эукариотической клетки.",
+                points: 1,
+                options: [
+                    "Рибосома",
+                    "Митохондрия",
+                    "Комплекс Гольджи",
+                    "Лизосома"
+                ],
+                correctAnswer: 1 // индекс митохондрии
+            },
+            {
+                id: "bio-q2",
+                type: "multiple_choice",
+                text: "Какие из перечисленных условий и веществ необходимы для световой фазы фотосинтеза в хлоропластах растений? (Выберите все верные варианты)",
+                descriptor: "Определяет компоненты световой фазы фотосинтеза (кванты света, вода, хлорофилл).",
+                points: 2,
+                options: [
+                    "Кванты солнечного света (фотоны)",
+                    "Молекулы воды (H2O)",
+                    "Темнота и отсутствие кислорода",
+                    "Пигмент хлорофилл"
+                ],
+                correctAnswer: [0, 1, 3] // световая фаза: свет, вода, хлорофилл
+            },
+            {
+                id: "bio-q3",
+                type: "single_choice",
+                text: "У человека большой круг кровообращения начинается из какого отдела сердца?",
+                descriptor: "Описывает круги кровообращения человека и отделы сердца.",
+                points: 1,
+                options: [
+                    "Правое предсердие",
+                    "Правый желудочек",
+                    "Левый желудочек",
+                    "Левое предсердие"
+                ],
+                correctAnswer: 2 // Левый желудочек
+            },
+            {
+                id: "bio-q4",
+                type: "single_choice",
+                text: "При скрещивании двух гетерозиготных особей гороха с желтыми семенами (Аа × Аа) какова теоретическая вероятность появления потомства с зелеными семенами (аа) по второму закону Менделя?",
+                descriptor: "Применяет второй закон Менделя для вычисления вероятности расщепления по фенотипу/генотипу.",
+                points: 2,
+                options: [
+                    "25%",
+                    "50%",
+                    "75%",
+                    "100%"
+                ],
+                correctAnswer: 0 // 25% (расщепление 3:1)
+            },
+            {
+                id: "bio-q5",
+                type: "text_answer",
+                text: "Как называется процесс поддержания относительного постоянства внутренней среды организма (температуры, pH крови, водно-солевого баланса)?",
+                descriptor: "Формулирует определение гомеостаза как свойства живых систем.",
+                points: 3,
+                options: [],
+                correctAnswer: "гомеостаз"
+            }
+        ];
+
+        // ================= СОСТОЯНИЕ ПРИЛОЖЕНИЯ =================
+        const state = {
+            config: {
+                title: "СОР №1: Клеточная биология и метаболизм",
+                grade: "9",
+                timeLimitMin: 25,
+                maxViolations: 3
+            },
+            questions: [],
+            student: {
+                fullName: "",
+                grade: "9",
+                letter: "Б"
+            },
+            studentAnswers: {},
+            examActive: false,
+            examFinished: false,
+            timeRemaining: 0,
+            timerInterval: null,
+            violationsCount: 0,
+            violationLogs: [],
+            audioCtx: null
+        };
+
+        // Ключи LocalStorage
+        const STORAGE_KEY_CONFIG = 'bio_sor_config_v1';
+        const STORAGE_KEY_QUESTIONS = 'bio_sor_questions_v1';
+
+        // Инициализация данных
+        function initData() {
+            const savedConfig = localStorage.getItem(STORAGE_KEY_CONFIG);
+            if (savedConfig) {
+                try { state.config = JSON.parse(savedConfig); } catch(e){}
+            }
+            const savedQuestions = localStorage.getItem(STORAGE_KEY_QUESTIONS);
+            if (savedQuestions) {
+                try { state.questions = JSON.parse(savedQuestions); } catch(e){}
+            } else {
+                state.questions = JSON.parse(JSON.stringify(DEFAULT_BIOLOGY_QUESTIONS));
+                saveQuestionsToStorage();
+            }
+            renderConfigInputs();
+            renderQuestionsEditor();
+        }
+
+        function saveConfigToStorage() {
+            localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(state.config));
+        }
+
+        function saveQuestionsToStorage() {
+            localStorage.setItem(STORAGE_KEY_QUESTIONS, JSON.stringify(state.questions));
+        }
+
+        // ================= DOM ЭЛЕМЕНТЫ =================
+        const teacherView = document.getElementById('teacherView');
+        const studentAuthView = document.getElementById('studentAuthView');
+        const studentExamView = document.getElementById('studentExamView');
+        const resultView = document.getElementById('resultView');
+
+        const navTeacherBtn = document.getElementById('navTeacherBtn');
+        const navStudentBtn = document.getElementById('navStudentBtn');
+
+        const watermarkLayer = document.getElementById('watermarkLayer');
+        const violationModal = document.getElementById('violationModal');
+        const violationModalText = document.getElementById('violationModalText');
+        const modalRemainingAttempts = document.getElementById('modalRemainingAttempts');
+        const resumeTestBtn = document.getElementById('resumeTestBtn');
+
+        const jsonModal = document.getElementById('jsonModal');
+        const jsonArea = document.getElementById('jsonArea');
+        const openJsonBtn = document.getElementById('openJsonBtn');
+        const closeJsonModalBtn = document.getElementById('closeJsonModalBtn');
+        const cancelJsonBtn = document.getElementById('cancelJsonBtn');
+        const copyJsonBtn = document.getElementById('copyJsonBtn');
+        const applyJsonBtn = document.getElementById('applyJsonBtn');
+        const resetToDefaultBtn = document.getElementById('resetToDefaultBtn');
+
+        const cfgTitle = document.getElementById('cfgTitle');
+        const cfgGrade = document.getElementById('cfgGrade');
+        const cfgTimeLimit = document.getElementById('cfgTimeLimit');
+        const cfgMaxViolations = document.getElementById('cfgMaxViolations');
+        const statQuestionCount = document.getElementById('statQuestionCount');
+        const statTotalScore = document.getElementById('statTotalScore');
+        const questionsEditorList = document.getElementById('questionsEditorList');
+        const addNewQuestionBtn = document.getElementById('addNewQuestionBtn');
+        const launchExamForStudentsBtn = document.getElementById('launchExamForStudentsBtn');
+
+        const studentAuthForm = document.getElementById('studentAuthForm');
+        const studentFullName = document.getElementById('studentFullName');
+        const studentClassNum = document.getElementById('studentClassNum');
+        const studentClassLetter = document.getElementById('studentClassLetter');
+        const authExamTitleDisplay = document.getElementById('authExamTitleDisplay');
+
+        const countdownTimer = document.getElementById('countdownTimer');
+        const liveViolationBadge = document.getElementById('liveViolationBadge');
+        const liveExamTitle = document.getElementById('liveExamTitle');
+        const liveStudentBadge = document.getElementById('liveStudentBadge');
+        const screenLiveStatus = document.getElementById('screenLiveStatus');
+        const questionNavPills = document.getElementById('questionNavPills');
+        const studentQuestionsList = document.getElementById('studentQuestionsList');
+        const quickSubmitBtn = document.getElementById('quickSubmitBtn');
+        const finalExamSubmitBtn = document.getElementById('finalExamSubmitBtn');
+
+        // ================= ЗВУКОВОЕ ОПОВЕЩЕНИЕ WEB AUDIO =================
+        function triggerAlarmBeep() {
+            try {
+                if (!state.audioCtx) {
+                    state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                const osc = state.audioCtx.createOscillator();
+                const gain = state.audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(520, state.audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(180, state.audioCtx.currentTime + 0.35);
+                gain.gain.setValueAtTime(0.3, state.audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, state.audioCtx.currentTime + 0.35);
+                osc.connect(gain);
+                gain.connect(state.audioCtx.destination);
+                osc.start();
+                osc.stop(state.audioCtx.currentTime + 0.35);
+            } catch(e) {}
+        }
+
+        // ================= ПЕРЕКЛЮЧЕНИЕ ЭКРАНОВ =================
+        function showView(view) {
+            [teacherView, studentAuthView, studentExamView, resultView].forEach(v => v.classList.add('hidden'));
+            view.classList.remove('hidden');
+            view.classList.add('fade-in');
+
+            // Подсветка кнопок в шапке
+            if (view === teacherView) {
+                navTeacherBtn.className = "px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5";
+                navStudentBtn.className = "px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1.5";
+                watermarkLayer.classList.add('hidden');
+            } else if (view === studentAuthView) {
+                navStudentBtn.className = "px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5";
+                navTeacherBtn.className = "px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1.5";
+                authExamTitleDisplay.textContent = state.config.title;
+                studentClassNum.value = state.config.grade;
+                watermarkLayer.classList.add('hidden');
+            }
+        }
+
+        navTeacherBtn.addEventListener('click', () => {
+            if (state.examActive && !confirmAction('Экзамен активен. Прервать тест и вернуться в конструктор?')) return;
+            endExamSession();
+            showView(teacherView);
+        });
+
+        navStudentBtn.addEventListener('click', () => {
+            if (state.examActive) return;
+            showView(studentAuthView);
+        });
+
+        function confirmAction(msg) {
+            // Мягкое подтверждение встроенным диалогом
+            return window.confirm(msg);
+        }
+
+        // ================= РЕДАКТОР ЗАДАНИЙ (УЧИТЕЛЬ) =================
+        function renderConfigInputs() {
+            cfgTitle.value = state.config.title;
+            cfgGrade.value = state.config.grade;
+            cfgTimeLimit.value = state.config.timeLimitMin;
+            cfgMaxViolations.value = state.config.maxViolations;
+            updateStats();
+        }
+
+        function updateStats() {
+            statQuestionCount.textContent = state.questions.length;
+            const total = state.questions.reduce((sum, q) => sum + (parseInt(q.points) || 1), 0);
+            statTotalScore.textContent = total;
+        }
+
+        [cfgTitle, cfgGrade, cfgTimeLimit, cfgMaxViolations].forEach(input => {
+            input.addEventListener('change', () => {
+                state.config.title = cfgTitle.value.trim() || "СОР по биологии";
+                state.config.grade = cfgGrade.value;
+                state.config.timeLimitMin = Math.max(5, parseInt(cfgTimeLimit.value) || 20);
+                state.config.maxViolations = Math.max(1, parseInt(cfgMaxViolations.value) || 3);
+                saveConfigToStorage();
+            });
+        });
+
+        function renderQuestionsEditor() {
+            questionsEditorList.innerHTML = '';
+            updateStats();
+
+            if (state.questions.length === 0) {
+                questionsEditorList.innerHTML = `
+                    <div class="bg-white p-8 rounded-2xl border border-dashed border-slate-300 text-center text-slate-500">
+                        Список заданий пуст. Нажмите «Добавить задание» или загрузите из JSON.
+                    </div>
+                `;
+                return;
+            }
+
+            state.questions.forEach((q, index) => {
+                const card = document.createElement('div');
+                card.className = "bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4";
+                card.dataset.index = index;
+
+                let optionsHtml = '';
+                if (q.type === 'single_choice' || q.type === 'multiple_choice') {
+                    optionsHtml = `
+                        <div class="space-y-2 mt-2">
+                            <label class="block text-xs font-bold text-slate-600">Варианты ответа (отметьте верный):</label>
+                            ${(q.options || []).map((opt, optIndex) => `
+                                <div class="flex items-center gap-2">
+                                    <input type="${q.type === 'single_choice' ? 'radio' : 'checkbox'}" 
+                                           name="q_correct_${q.id}" 
+                                           class="opt-correct-check w-4 h-4 text-emerald-600 rounded" 
+                                           data-opt-idx="${optIndex}"
+                                           ${isOptionCorrect(q, optIndex) ? 'checked' : ''}>
+                                    <input type="text" value="${escapeHtml(opt)}" 
+                                           data-opt-idx="${optIndex}" 
+                                           class="opt-input flex-grow px-3 py-1.5 rounded-lg border border-slate-200 text-xs focus:ring-1 focus:ring-emerald-500 outline-none">
+                                    <button type="button" data-del-opt="${optIndex}" class="text-slate-400 hover:text-red-500 px-1 py-1">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                    </button>
+                                </div>
+                            `).join('')}
+                            <button type="button" class="add-option-btn text-xs text-emerald-700 hover:text-emerald-800 font-semibold mt-1 flex items-center gap-1">
+                                + Добавить вариант ответа
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    optionsHtml = `
+                        <div class="mt-2">
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Правильный эталон ответа (текст или число):</label>
+                            <input type="text" class="text-answer-input w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:ring-1 focus:ring-emerald-500 outline-none font-medium" 
+                                   value="${escapeHtml(String(q.correctAnswer || ''))}">
+                            <p class="text-[11px] text-slate-400 mt-1">Регистр букв и пробелы при проверке не учитываются.</p>
+                        </div>
+                    `;
+                }
+
+                card.innerHTML = `
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 font-bold text-xs rounded-lg uppercase">
+                                Задание #${index + 1}
+                            </span>
+                            <select class="q-type-select px-2.5 py-1 rounded-lg border border-slate-200 text-xs font-semibold bg-white text-slate-700 focus:ring-1 focus:ring-emerald-500">
+                                <option value="single_choice" ${q.type === 'single_choice' ? 'selected' : ''}>Одиночный выбор (1 ответ)</option>
+                                <option value="multiple_choice" ${q.type === 'multiple_choice' ? 'selected' : ''}>Множественный выбор</option>
+                                <option value="text_answer" ${q.type === 'text_answer' ? 'selected' : ''}>Краткий ввод (слово/число)</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <div class="flex items-center gap-1 text-xs">
+                                <span class="text-slate-500">Балл:</span>
+                                <input type="number" min="1" max="10" value="${q.points || 1}" 
+                                       class="q-points-input w-12 px-2 py-1 text-center font-bold border border-slate-200 rounded-md focus:ring-1 focus:ring-emerald-500 outline-none">
+                            </div>
+                            <button type="button" class="del-question-btn text-slate-400 hover:text-red-500 p-1" title="Удалить задание">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Формулировка вопроса:</label>
+                        <textarea rows="2" class="q-text-input w-full px-3 py-2 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500 outline-none">${escapeHtml(q.text)}</textarea>
+                    </div>
+
+                    ${optionsHtml}
+
+                    <div class="pt-2 border-t border-slate-100">
+                        <label class="block text-xs font-bold text-slate-500 mb-1">Дескриптор / Цель обучения (по критериям оценивания):</label>
+                        <input type="text" value="${escapeHtml(q.descriptor || '')}" 
+                               class="q-desc-input w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-600 focus:ring-1 focus:ring-emerald-500 outline-none">
+                    </div>
+                `;
+
+                // Привязка обработчиков внутри карточки
+                attachQuestionCardListeners(card, q, index);
+                questionsEditorList.appendChild(card);
+            });
+        }
+
+        function isOptionCorrect(q, optIndex) {
+            if (q.type === 'single_choice') {
+                return Number(q.correctAnswer) === optIndex;
+            }
+            if (q.type === 'multiple_choice') {
+                return Array.isArray(q.correctAnswer) && q.correctAnswer.includes(optIndex);
+            }
+            return false;
+        }
+
+        function attachQuestionCardListeners(card, q, index) {
+            // Изменение типа вопроса
+            card.querySelector('.q-type-select').addEventListener('change', (e) => {
+                q.type = e.target.value;
+                if (q.type === 'single_choice') {
+                    q.options = q.options && q.options.length ? q.options : ["Вариант 1", "Вариант 2", "Вариант 3", "Вариант 4"];
+                    q.correctAnswer = 0;
+                } else if (q.type === 'multiple_choice') {
+                    q.options = q.options && q.options.length ? q.options : ["Вариант 1", "Вариант 2", "Вариант 3", "Вариант 4"];
+                    q.correctAnswer = [0];
+                } else {
+                    q.options = [];
+                    q.correctAnswer = "";
+                }
+                saveQuestionsToStorage();
+                renderQuestionsEditor();
+            });
+
+            // Изменение балла
+            card.querySelector('.q-points-input').addEventListener('change', (e) => {
+                q.points = Math.max(1, parseInt(e.target.value) || 1);
+                saveQuestionsToStorage();
+                updateStats();
+            });
+
+            // Удаление вопроса
+            card.querySelector('.del-question-btn').addEventListener('click', () => {
+                state.questions.splice(index, 1);
+                saveQuestionsToStorage();
+                renderQuestionsEditor();
+            });
+
+            // Текст вопроса
+            card.querySelector('.q-text-input').addEventListener('input', (e) => {
+                q.text = e.target.value;
+                saveQuestionsToStorage();
+            });
+
+            // Дескриптор
+            card.querySelector('.q-desc-input').addEventListener('input', (e) => {
+                q.descriptor = e.target.value;
+                saveQuestionsToStorage();
+            });
+
+            // Редактирование опций (если выбор)
+            if (q.type === 'single_choice' || q.type === 'multiple_choice') {
+                card.querySelectorAll('.opt-input').forEach(input => {
+                    input.addEventListener('input', (e) => {
+                        const optIdx = parseInt(e.target.dataset.optIdx);
+                        q.options[optIdx] = e.target.value;
+                        saveQuestionsToStorage();
+                    });
+                });
+
+                card.querySelectorAll('.opt-correct-check').forEach(check => {
+                    check.addEventListener('change', () => {
+                        if (q.type === 'single_choice') {
+                            const checked = card.querySelector(`.opt-correct-check:checked`);
+                            q.correctAnswer = checked ? parseInt(checked.dataset.optIdx) : 0;
+                        } else {
+                            const selected = [];
+                            card.querySelectorAll('.opt-correct-check:checked').forEach(c => {
+                                selected.push(parseInt(c.dataset.optIdx));
+                            });
+                            q.correctAnswer = selected;
+                        }
+                        saveQuestionsToStorage();
+                    });
+                });
+
+                card.querySelectorAll('[data-del-opt]').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const optIdx = parseInt(btn.dataset.delOpt);
+                        if (q.options.length <= 2) {
+                            alertMessage('У вопроса должно быть минимум 2 варианта ответа.');
+                            return;
+                        }
+                        q.options.splice(optIdx, 1);
+                        // Скорректировать индексы правильных ответов
+                        if (q.type === 'single_choice') {
+                            if (q.correctAnswer === optIdx) q.correctAnswer = 0;
+                            else if (q.correctAnswer > optIdx) q.correctAnswer--;
+                        } else {
+                            q.correctAnswer = q.correctAnswer
+                                .filter(i => i !== optIdx)
+                                .map(i => i > optIdx ? i - 1 : i);
+                        }
+                        saveQuestionsToStorage();
+                        renderQuestionsEditor();
+                    });
+                });
+
+                const addOptBtn = card.querySelector('.add-option-btn');
+                if (addOptBtn) {
+                    addOptBtn.addEventListener('click', () => {
+                        q.options.push(`Новый вариант ответа ${q.options.length + 1}`);
+                        saveQuestionsToStorage();
+                        renderQuestionsEditor();
+                    });
+                }
+            } else {
+                // Текстовый ввод
+                const textInput = card.querySelector('.text-answer-input');
+                if (textInput) {
+                    textInput.addEventListener('input', (e) => {
+                        q.correctAnswer = e.target.value.trim();
+                        saveQuestionsToStorage();
+                    });
+                }
+            }
+        }
+
+        addNewQuestionBtn.addEventListener('click', () => {
+            const newQ = {
+                id: "bio-q" + Date.now(),
+                type: "single_choice",
+                text: "Новый вопрос по биологии (введите формулировку)...",
+                descriptor: "Умеет определять биологические процессы и понятия.",
+                points: 1,
+                options: ["Вариант A", "Вариант B", "Вариант C", "Вариант D"],
+                correctAnswer: 0
+            };
+            state.questions.push(newQ);
+            saveQuestionsToStorage();
+            renderQuestionsEditor();
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        });
+
+        resetToDefaultBtn.addEventListener('click', () => {
+            if (confirmAction('Восстановить типовой банк заданий по биологии (все изменения будут сброшены)?')) {
+                state.questions = JSON.parse(JSON.stringify(DEFAULT_BIOLOGY_QUESTIONS));
+                state.config = {
+                    title: "СОР №1: Клеточная биология и метаболизм",
+                    grade: "9",
+                    timeLimitMin: 25,
+                    maxViolations: 3
+                };
+                saveConfigToStorage();
+                saveQuestionsToStorage();
+                renderConfigInputs();
+                renderQuestionsEditor();
+            }
+        });
+
+        // JSON Модальное окно
+        openJsonBtn.addEventListener('click', () => {
+            const exportData = {
+                config: state.config,
+                questions: state.questions
+            };
+            jsonArea.value = JSON.stringify(exportData, null, 2);
+            jsonModal.classList.remove('hidden');
+        });
+
+        closeJsonModalBtn.addEventListener('click', () => jsonModal.classList.add('hidden'));
+        cancelJsonBtn.addEventListener('click', () => jsonModal.classList.add('hidden'));
+
+        copyJsonBtn.addEventListener('click', () => {
+            jsonArea.select();
+            document.execCommand('copy');
+            copyJsonBtn.textContent = 'Скопировано!';
+            setTimeout(() => copyJsonBtn.textContent = 'Скопировать в буфер', 2000);
+        });
+
+        applyJsonBtn.addEventListener('click', () => {
+            try {
+                const parsed = JSON.parse(jsonArea.value);
+                if (parsed.questions && Array.isArray(parsed.questions)) {
+                    state.questions = parsed.questions;
+                    if (parsed.config) state.config = { ...state.config, ...parsed.config };
+                    saveConfigToStorage();
+                    saveQuestionsToStorage();
+                    renderConfigInputs();
+                    renderQuestionsEditor();
+                    jsonModal.classList.add('hidden');
+                } else {
+                    alertMessage('Некорректная структура JSON. Требуется объект со свойством "questions".');
+                }
+            } catch(e) {
+                alertMessage('Ошибка парсинга JSON: проверьте синтаксис кавычек и запятых.');
+            }
+        });
+
+        launchExamForStudentsBtn.addEventListener('click', () => {
+            if (state.questions.length === 0) {
+                alertMessage('Добавьте хотя бы одно задание перед запуском.');
+                return;
+            }
+            showView(studentAuthView);
+        });
+
+        // ================= РЕЖИМ УЧЕНИКА: АВТОРИЗАЦИЯ И СТАРТ =================
+        studentAuthForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (state.questions.length === 0) {
+                alertMessage('В тесте отсутствуют задания. Перейдите в конструктор учителя.');
+                return;
+            }
+
+            state.student.fullName = studentFullName.value.trim();
+            state.student.grade = studentClassNum.value;
+            state.student.letter = studentClassLetter.value;
+
+            // Запрос полного экрана
+            try {
+                await requestFullScreen();
+            } catch (err) {}
+
+            startExamSession();
+        });
+
+        async function requestFullScreen() {
+            const docEl = document.documentElement;
+            if (docEl.requestFullscreen) {
+                await docEl.requestFullscreen();
+            } else if (docEl.webkitRequestFullscreen) {
+                await docEl.webkitRequestFullscreen();
+            } else if (docEl.msRequestFullscreen) {
+                await docEl.msRequestFullscreen();
+            }
+        }
+
+        function startExamSession() {
+            state.examActive = true;
+            state.examFinished = false;
+            state.studentAnswers = {};
+            state.violationsCount = 0;
+            state.violationLogs = [];
+            state.timeRemaining = state.config.timeLimitMin * 60;
+
+            // Заполнение шапки экзамена
+            liveExamTitle.textContent = state.config.title;
+            liveStudentBadge.textContent = `${state.student.fullName} • ${state.student.grade} "${state.student.letter}"`;
+            liveViolationBadge.textContent = `0 / ${state.config.maxViolations}`;
+            liveViolationBadge.className = 'bg-emerald-600 text-white px-2 py-0.5 rounded-md font-bold';
+
+            // Настройка водяных знаков
+            watermarkLayer.classList.remove('hidden');
+            generateWatermarks();
+
+            // Рендер вопросов для прохождения
+            renderStudentQuestions();
+
+            // Переход на экран
+            showView(studentExamView);
+
+            // Запуск таймера
+            startTimer();
+            logViolationEvent('Начата экзаменационная сессия. Полноэкранный режим активирован.');
+        }
+
+        function generateWatermarks() {
+            watermarkLayer.innerHTML = '';
+            const now = new Date().toLocaleTimeString('ru-RU');
+            const stamp = `${state.student.fullName} • ${state.student.grade}"${state.student.letter}" • ${now} • СОР/СОЧ БИОЛОГИЯ`;
+            for (let i = 0; i < 40; i++) {
+                const item = document.createElement('div');
+                item.className = 'watermark-item';
+                item.textContent = stamp;
+                watermarkLayer.appendChild(item);
+            }
+        }
+
+        // Обновление таймштампа водяных знаков каждые 30 секунд
+        setInterval(() => {
+            if (state.examActive) generateWatermarks();
+        }, 30000);
+
+        function startTimer() {
+            clearInterval(state.timerInterval);
+            updateTimerDisplay();
+
+            state.timerInterval = setInterval(() => {
+                if (!state.examActive) return;
+                state.timeRemaining--;
+                updateTimerDisplay();
+
+                if (state.timeRemaining <= 180) { // 3 минуты до конца
+                    countdownTimer.parentElement.classList.remove('bg-emerald-50', 'text-emerald-800');
+                    countdownTimer.parentElement.classList.add('bg-red-50', 'text-red-700', 'animate-pulse');
+                }
+
+                if (state.timeRemaining <= 0) {
+                    clearInterval(state.timerInterval);
+                    finishExam('Время тестирования истекло. Работа сохранена автоматически.');
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const m = Math.floor(state.timeRemaining / 60);
+            const s = state.timeRemaining % 60;
+            countdownTimer.textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+
+        // Рендер заданий для ученика
+        function renderStudentQuestions() {
+            studentQuestionsList.innerHTML = '';
+            questionNavPills.innerHTML = '';
+
+            state.questions.forEach((q, i) => {
+                // Навигационная кнопка
+                const pill = document.createElement('button');
+                pill.type = 'button';
+                pill.id = `navPill_${q.id}`;
+                pill.className = "flex-shrink-0 w-8 h-8 rounded-xl font-bold text-xs border border-slate-200 text-slate-600 hover:bg-slate-100 transition";
+                pill.textContent = i + 1;
+                pill.onclick = () => {
+                    document.getElementById(`qCard_${q.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                };
+                questionNavPills.appendChild(pill);
+
+                // Карточка задания
+                const qCard = document.createElement('div');
+                qCard.id = `qCard_${q.id}`;
+                qCard.className = "bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4";
+
+                let bodyHtml = '';
+                if (q.type === 'single_choice') {
+                    bodyHtml = `
+                        <div class="space-y-2.5 pt-2">
+                            ${(q.options || []).map((opt, oIdx) => `
+                                <label class="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 hover:bg-emerald-50/50 hover:border-emerald-200 cursor-pointer transition">
+                                    <input type="radio" name="ans_${q.id}" value="${oIdx}" class="w-4 h-4 text-emerald-600 mt-0.5" 
+                                           onchange="recordStudentAnswer('${q.id}', ${oIdx})">
+                                    <span class="text-sm text-slate-800 leading-snug">${escapeHtml(opt)}</span>
+                                </label>
+                            `).join('')}
+                        </div>
+                    `;
+                } else if (q.type === 'multiple_choice') {
+                    bodyHtml = `
+                        <div class="space-y-2.5 pt-2">
+                            ${(q.options || []).map((opt, oIdx) => `
+                                <label class="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 hover:bg-emerald-50/50 hover:border-emerald-200 cursor-pointer transition">
+                                    <input type="checkbox" name="ans_${q.id}" value="${oIdx}" class="w-4 h-4 text-emerald-600 rounded mt-0.5" 
+                                           onchange="recordStudentAnswerMultiple('${q.id}')">
+                                    <span class="text-sm text-slate-800 leading-snug">${escapeHtml(opt)}</span>
+                                </label>
+                            `).join('')}
+                        </div>
+                    `;
+                } else {
+                    bodyHtml = `
+                        <div class="pt-2">
+                            <input type="text" placeholder="Введите ваш краткий ответ..." 
+                                   class="w-full sm:w-80 px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm font-semibold"
+                                   oninput="recordStudentAnswer('${q.id}', this.value)">
+                        </div>
+                    `;
+                }
+
+                qCard.innerHTML = `
+                    <div class="flex items-start justify-between gap-4">
+                        <span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 font-bold text-xs rounded-lg uppercase">
+                            Задание ${i + 1} (${q.points || 1} ${pluralizePoints(q.points || 1)})
+                        </span>
+                        <span class="text-xs text-slate-400">
+                            ${q.type === 'single_choice' ? '1 верный ответ' : q.type === 'multiple_choice' ? 'Несколько ответов' : 'Ввод текста'}
+                        </span>
+                    </div>
+                    <h3 class="text-base font-semibold text-slate-900 leading-relaxed">
+                        ${escapeHtml(q.text)}
+                    </h3>
+                    ${bodyHtml}
+                    ${q.descriptor ? `
+                        <div class="pt-3 border-t border-slate-100 text-[11px] text-slate-400 flex items-center gap-1.5">
+                            <span class="font-bold text-slate-500 uppercase">Дескриптор:</span> ${escapeHtml(q.descriptor)}
+                        </div>
+                    ` : ''}
+                `;
+
+                studentQuestionsList.appendChild(qCard);
+            });
+        }
+
+        // Фиксация ответов ученика
+        window.recordStudentAnswer = function(qId, val) {
+            state.studentAnswers[qId] = typeof val === 'string' ? val.trim() : val;
+            markPillAnswered(qId);
+        };
+
+        window.recordStudentAnswerMultiple = function(qId) {
+            const checks = document.querySelectorAll(`input[name="ans_${qId}"]:checked`);
+            const vals = Array.from(checks).map(c => parseInt(c.value));
+            state.studentAnswers[qId] = vals;
+            if (vals.length > 0) markPillAnswered(qId);
+            else unmarkPillAnswered(qId);
+        };
+
+        function markPillAnswered(qId) {
+            const pill = document.getElementById(`navPill_${qId}`);
+            if (pill) {
+                pill.className = "flex-shrink-0 w-8 h-8 rounded-xl font-bold text-xs bg-emerald-600 text-white shadow-sm";
+            }
+        }
+
+        function unmarkPillAnswered(qId) {
+            const pill = document.getElementById(`navPill_${qId}`);
+            if (pill) {
+                pill.className = "flex-shrink-0 w-8 h-8 rounded-xl font-bold text-xs border border-slate-200 text-slate-600 hover:bg-slate-100";
+            }
+        }
+
+        // ================= СИСТЕМА АНТИЧИТА И ПРОКТОРИНГА =================
+        function logViolationEvent(desc) {
+            const stamp = new Date().toLocaleTimeString('ru-RU');
+            state.violationLogs.push({ time: stamp, desc: desc });
+        }
+
+        function triggerViolation(reason) {
+            if (!state.examActive || state.examFinished) return;
+
+            triggerAlarmBeep();
+            state.violationsCount++;
+            logViolationEvent(`Нарушение #${state.violationsCount}: ${reason}`);
+
+            liveViolationBadge.textContent = `${state.violationsCount} / ${state.config.maxViolations}`;
+            liveViolationBadge.className = 'bg-red-600 text-white px-2 py-0.5 rounded-md font-bold';
+
+            const remaining = state.config.maxViolations - state.violationsCount;
+            modalRemainingAttempts.textContent = remaining > 0 ? remaining : 0;
+
+            // Блюрим экран, чтобы защитить задания от подсматривания/скриншота
+            document.getElementById('mainWrapper').classList.add('blurred-screen');
+
+            if (state.violationsCount >= state.config.maxViolations) {
+                finishExam(`Превышен лимит нарушений (${state.config.maxViolations}/${state.config.maxViolations}). Работа принудительно аннулирована.`);
+            } else {
+                violationModalText.textContent = `Зафиксировано: ${reason}. Попытка ухода с теста внесена в итоговый протокол учителя.`;
+                violationModal.classList.remove('hidden');
+            }
+        }
+
+        resumeTestBtn.addEventListener('click', async () => {
+            try {
+                await requestFullScreen();
+            } catch(e) {}
+            violationModal.classList.add('hidden');
+            document.getElementById('mainWrapper').classList.remove('blurred-screen');
+        });
+
+        // 1. Потеря фокуса окна (Alt+Tab, клик во второе приложение)
+        window.addEventListener('blur', () => {
+            if (state.examActive && !state.examFinished) {
+                triggerViolation('Уход из окна тестирования / переключение окна (Alt+Tab)');
+            }
+        });
+
+        // 2. Скрытие вкладки (visibilitychange)
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && state.examActive && !state.examFinished) {
+                triggerViolation('Вкладка браузера скрыта или свернута');
+            }
+        });
+
+        // 3. Выход из полноэкранного режима
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement && state.examActive && !state.examFinished) {
+                screenLiveStatus.textContent = '● Выход из полноэкранного режима!';
+                screenLiveStatus.className = 'font-bold text-red-600';
+                triggerViolation('Выход из полноэкранного режима (Esc / изменение размера окна)');
+            } else if (document.fullscreenElement && state.examActive) {
+                screenLiveStatus.textContent = '● Полный экран активен';
+                screenLiveStatus.className = 'font-bold text-emerald-700';
+            }
+        });
+
+        // 4. Защита клавиатурных сокращений и PrintScreen
+        window.addEventListener('keydown', (e) => {
+            if (!state.examActive || state.examFinished) return;
+
+            // PrintScreen
+            if (e.key === 'PrintScreen' || e.code === 'PrintScreen') {
+                e.preventDefault();
+                navigator.clipboard?.writeText?.('');
+                triggerViolation('Попытка создания снимка экрана (PrintScreen)');
+                return false;
+            }
+
+            // F12 (DevTools)
+            if (e.key === 'F12' || e.code === 'F12') {
+                e.preventDefault();
+                triggerViolation('Попытка вызова консоли разработчика (F12)');
+                return false;
+            }
+
+            // Ctrl/Cmd комбинации
+            if (e.ctrlKey || e.metaKey) {
+                const k = e.key.toLowerCase();
+                if (['c', 'v', 'a', 'x', 'p', 's', 'u'].includes(k)) {
+                    e.preventDefault();
+                    if (k === 'p') triggerViolation('Попытка вызова диалога печати (Ctrl+P)');
+                    else if (k === 'c') triggerViolation('Попытка копирования содержимого (Ctrl+C)');
+                    return false;
+                }
+                if (e.shiftKey && ['i', 'j', 'c'].includes(k)) {
+                    e.preventDefault();
+                    triggerViolation('Попытка открытия DevTools (Ctrl+Shift+I/J/C)');
+                    return false;
+                }
+            }
+        });
+
+        // 5. Блокировка события копирования
+        document.addEventListener('copy', (e) => {
+            if (state.examActive && !state.examFinished) {
+                e.preventDefault();
+                triggerViolation('Перехвачено событие копирования');
+            }
+        });
+
+        // ================= ЗАВЕРШЕНИЕ ЭКЗАМЕНА И РАСЧЕТ РЕЗУЛЬТАТОВ =================
+        function finishExam(statusMessage) {
+            state.examActive = false;
+            state.examFinished = true;
+            clearInterval(state.timerInterval);
+
+            violationModal.classList.add('hidden');
+            document.getElementById('mainWrapper').classList.remove('blurred-screen');
+
+            if (document.fullscreenElement) {
+                document.exitFullscreen().catch(() => {});
+            }
+
+            const isDisqualified = state.violationsCount >= state.config.maxViolations;
+            let earnedScore = 0;
+            let maxScore = 0;
+
+            const breakdown = [];
+
+            state.questions.forEach((q, idx) => {
+                const pts = parseInt(q.points) || 1;
+                maxScore += pts;
+                let userGot = 0;
+                const studentAns = state.studentAnswers[q.id];
+
+                if (!isDisqualified) {
+                    if (q.type === 'single_choice') {
+                        if (studentAns !== undefined && Number(studentAns) === Number(q.correctAnswer)) {
+                            userGot = pts;
+                        }
+                    } else if (q.type === 'multiple_choice') {
+                        const correctArr = Array.isArray(q.correctAnswer) ? [...q.correctAnswer].sort() : [];
+                        const userArr = Array.isArray(studentAns) ? [...studentAns].sort() : [];
+                        if (JSON.stringify(correctArr) === JSON.stringify(userArr)) {
+                            userGot = pts;
+                        }
+                    } else {
+                        // Краткий текстовый ответ
+                        const userStr = String(studentAns || '').toLowerCase().trim();
+                        const correctStr = String(q.correctAnswer || '').toLowerCase().trim();
+                        if (userStr.length > 0 && userStr === correctStr) {
+                            userGot = pts;
+                        }
+                    }
+                }
+
+                earnedScore += userGot;
+                breakdown.push({
+                    number: idx + 1,
+                    text: q.text,
+                    descriptor: q.descriptor,
+                    pointsGot: userGot,
+                    pointsMax: pts,
+                    isSuccess: userGot === pts
+                });
+            });
+
+            if (isDisqualified) earnedScore = 0;
+
+            renderFinalReport(earnedScore, maxScore, breakdown, statusMessage, isDisqualified);
+        }
+
+        function renderFinalReport(earned, max, breakdown, statusMessage, isDisqualified) {
+            showView(resultView);
+
+            const reportHeadline = document.getElementById('reportHeadline');
+            const reportSubheadline = document.getElementById('reportSubheadline');
+            const resultHero = document.getElementById('resultHero');
+            const resultIconBadge = document.getElementById('resultIconBadge');
+
+            if (isDisqualified) {
+                resultHero.className = "p-6 sm:p-8 text-white text-center bg-red-600";
+                reportHeadline.textContent = "Работа аннулирована!";
+                reportSubheadline.textContent = statusMessage || "Превышен лимит нарушений академической честности";
+                resultIconBadge.innerHTML = `<svg class="w-9 h-9 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>`;
+            } else {
+                resultHero.className = "p-6 sm:p-8 text-white text-center bg-emerald-700";
+                reportHeadline.textContent = "СОР / СОЧ по биологии сдан!";
+                reportSubheadline.textContent = statusMessage || "Результаты зафиксированы и готовы для отчета учителю";
+                resultIconBadge.innerHTML = `<svg class="w-9 h-9 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+            }
+
+            document.getElementById('repScore').textContent = `${earned} / ${max}`;
+            const pct = max > 0 ? Math.round((earned / max) * 100) : 0;
+            document.getElementById('repPercent').textContent = `${pct}%`;
+            document.getElementById('repViolations').textContent = state.violationsCount;
+
+            const spentSec = (state.config.timeLimitMin * 60) - state.timeRemaining;
+            const minSp = Math.floor(spentSec / 60);
+            const secSp = spentSec % 60;
+            document.getElementById('repTimeSpent').textContent = `${minSp}м ${secSp}с`;
+
+            document.getElementById('repStudent').textContent = state.student.fullName;
+            document.getElementById('repGrade').textContent = `${state.student.grade} "${state.student.letter}"`;
+            document.getElementById('repExamName').textContent = state.config.title;
+            document.getElementById('repTimestamp').textContent = new Date().toLocaleString('ru-RU');
+
+            // Список дескрипторов
+            const breakdownContainer = document.getElementById('breakdownContainer');
+            breakdownContainer.innerHTML = breakdown.map(item => `
+                <div class="p-3 rounded-xl border ${item.isSuccess ? 'border-emerald-200 bg-emerald-50/50' : 'border-slate-200 bg-slate-50'} flex justify-between items-center gap-3">
+                    <div>
+                        <span class="font-bold text-slate-800">Задание #${item.number}:</span>
+                        <span class="text-slate-600 line-clamp-1">${escapeHtml(item.text)}</span>
+                        ${item.descriptor ? `<p class="text-[11px] text-slate-400 mt-0.5">Дескриптор: ${escapeHtml(item.descriptor)}</p>` : ''}
+                    </div>
+                    <span class="font-bold text-xs ${item.isSuccess ? 'text-emerald-700' : 'text-slate-500'} flex-shrink-0">
+                        ${item.pointsGot} / ${item.pointsMax} б.
+                    </span>
+                </div>
+            `).join('');
+
+            // Логи нарушений
+            const repViolationLogs = document.getElementById('repViolationLogs');
+            document.getElementById('repLogCount').textContent = `${state.violationLogs.length} записей`;
+            if (state.violationLogs.length > 0) {
+                repViolationLogs.innerHTML = state.violationLogs.map(l => `
+                    <div class="leading-relaxed">
+                        <span class="text-slate-500">[${l.time}]</span> 
+                        <span class="${l.desc.includes('Нарушение') ? 'text-red-400 font-semibold' : 'text-emerald-300'}">${escapeHtml(l.desc)}</span>
+                    </div>
+                `).join('');
+            } else {
+                repViolationLogs.innerHTML = '<div class="text-slate-400">Нарушений режима тестирования не зафиксировано.</div>';
+            }
+        }
+
+        quickSubmitBtn.addEventListener('click', () => {
+            if (confirmAction('Вы уверены, что хотите досрочно сдать работу?')) {
+                finishExam('Работа сдана досрочно по инициативе учащегося.');
+            }
+        });
+
+        finalExamSubmitBtn.addEventListener('click', () => {
+            finishExam('Работа успешно проверена и сохранена.');
+        });
+
+        function endExamSession() {
+            state.examActive = false;
+            state.examFinished = true;
+            clearInterval(state.timerInterval);
+            watermarkLayer.classList.add('hidden');
+            if (document.fullscreenElement) {
+                document.exitFullscreen().catch(() => {});
+            }
+        }
+
+        // ================= ЭКСПОРТ РЕЗУЛЬТАТОВ =================
+        document.getElementById('copySummaryBtn').addEventListener('click', () => {
+            const earned = document.getElementById('repScore').textContent;
+            const pct = document.getElementById('repPercent').textContent;
+            const student = state.student.fullName;
+            const cls = `${state.student.grade} "${state.student.letter}"`;
+            const exam = state.config.title;
+            const violations = state.violationsCount;
+
+            const summaryText = `[ПРОТОКОЛ СОР/СОЧ БИОЛОГИЯ]\nУченик: ${student} (${cls})\nТема: ${exam}\nБаллы: ${earned} (${pct})\nНарушений фокуса/окна: ${violations}\nДата: ${new Date().toLocaleString('ru-RU')}`;
+
+            const tempArea = document.createElement('textarea');
+            tempArea.value = summaryText;
+            document.body.appendChild(tempArea);
+            tempArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempArea);
+
+            alertMessage('Сводка результата скопирована в буфер обмена!');
+        });
+
+        document.getElementById('downloadReportBtn').addEventListener('click', () => {
+            const student = state.student.fullName || "student";
+            const reportContent = `ПРОТОКОЛ ТЕСТИРОВАНИЯ СОР / СОЧ ПО БИОЛОГИИ
+------------------------------------------------
+Учащийся: ${state.student.fullName}
+Класс: ${state.student.grade} "${state.student.letter}"
+Работа: ${state.config.title}
+Итоговый балл: ${document.getElementById('repScore').textContent} (${document.getElementById('repPercent').textContent})
+Число нарушений: ${state.violationsCount}
+Время сдачи: ${new Date().toLocaleString('ru-RU')}
+
+ЛОГ МОНИТОРИНГА ПРОКТОРИНГА:
+${state.violationLogs.map(l => `[${l.time}] ${l.desc}`).join('\n')}
+`;
+            const blob = new Blob([reportContent], { type: 'text/plain;charset=utf-8' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `Протокол_${student}_${state.student.grade}.txt`;
+            link.click();
+            URL.revokeObjectURL(link.href);
+        });
+
+        document.getElementById('backToHomeBtn').addEventListener('click', () => {
+            showView(teacherView);
+        });
+
+        // Вспомогательные функции
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function pluralizePoints(n) {
+            n = Math.abs(n) % 100;
+            const n1 = n % 10;
+            if (n > 10 && n < 20) return 'баллов';
+            if (n1 > 1 && n1 < 5) return 'балла';
+            if (n1 === 1) return 'балл';
+            return 'баллов';
+        }
+
+        function alertMessage(msg) {
+            window.alert(msg);
+        }
+
+        // Запуск приложения
+        initData();
+    </script>
+</body>
+</html>
